@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://via.placeholder.com/120x120/00f3ff/000000?text=Flux" alt="Flux Logo" width="120" height="120">
+  <img src="src/assets/icon.png" alt="Flux Logo" width="120" height="120">
 
   <h1>Flux Terminal</h1>
 
