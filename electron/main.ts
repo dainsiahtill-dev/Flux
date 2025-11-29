@@ -1,17 +1,21 @@
-// main.js (ES Module 版本)
-import { app, BrowserWindow, ipcMain } from 'electron';
+// electron/main.ts
+import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-
+import * as fs from 'fs'; // ✅ 必须引入 fs 模块用于读取文件
 import { SessionManager } from './core/SessionManager'
 import Store from 'electron-store'
 
+// 1. 定义存储结构，增加 keys
 interface StoreSchema {
   hosts: any[];
+  keys: any[]; 
 }
+
 const store = new Store<StoreSchema>({
   defaults: {
-    hosts: [] // 默认空列表
+    hosts: [],
+    keys: [] 
   }
 });
 
@@ -19,13 +23,11 @@ const sessionManager = new SessionManager();
 // 屏蔽安全警告
 process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true';
 
-// 兼容 ES Module 的 __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const windowSize = { width: 1200, height: 800 }
 
-// 创建浏览器窗口
 const createWindow = () => {
     const mainWindow = new BrowserWindow({
         width: windowSize.width,
@@ -41,14 +43,13 @@ const createWindow = () => {
         show: false,
         icon: join(__dirname, '../../src/assets/icon.png'),
         title: 'Flux Terminal',
-
     });
 
     mainWindow.once('ready-to-show', () => {
         mainWindow.show()
     })
 
-    // ✅ 窗口控制 IPC
+    // 窗口控制
     ipcMain.handle('window-is-maximized', () => mainWindow.isMaximized())
     ipcMain.on('window-minimize', () => mainWindow.minimize())
     ipcMain.on('window-maximize', () => {
@@ -60,16 +61,14 @@ const createWindow = () => {
     })
     ipcMain.on('window-close', () => mainWindow.close())
 
-    // development 模式
     if (process.env.VITE_DEV_SERVER_URL) {
         mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
-        // 开启调试台
         mainWindow.webContents.openDevTools();
     } else {
         mainWindow.loadFile(join(__dirname, '../../dist/index.html'));
     }
 };
-// Electron 会在初始化后并准备
+
 app.whenReady().then(() => {
     createWindow();
     app.on('activate', () => {
@@ -78,23 +77,21 @@ app.whenReady().then(() => {
         }
     });
 });
+
 app.on('window-all-closed', () => {
-
-    // 退出前清理所有会话
     sessionManager.killAll()
-
     if (process.platform !== 'darwin') {
         app.quit();
     }
 });
 
 // ==========================================
-//  IPC 路由 -> 转发给 SessionManager
+//  IPC 路由 (核心功能实现)
 // ==========================================
 
+// Session
 ipcMain.on('session-init', async (event, config) => {
   try {
-    // 将 webContents 传给 Manager，方便它回传数据
     await sessionManager.createSession(config, event.sender)
   } catch (error) {
     console.error('Failed to init session:', error)
@@ -113,14 +110,44 @@ ipcMain.on('session-close', (event, { id }) => {
   sessionManager.kill(id)
 })
 
-// 获取所有主机
-ipcMain.handle('hosts-get', () => {
-  return store.get('hosts');
-});
-
-// 保存/覆盖所有主机 (接收整个数组)
+// --- Hosts CRUD ---
+ipcMain.handle('hosts-get', () => store.get('hosts'));
 ipcMain.handle('hosts-save', (_event, hosts) => {
-    console.log('Saving hosts:', hosts);
   store.set('hosts', hosts);
   return true;
 });
+
+// --- ✅ Keys CRUD (新增) ---
+ipcMain.handle('keys-get', () => store.get('keys'));
+ipcMain.handle('keys-save', (_event, keys) => {
+  store.set('keys', keys);
+  return true;
+});
+
+// --- ✅ 文件操作 (新增) ---
+
+// 1. 打开文件选择弹窗
+ipcMain.handle('dialog-open-file', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog({
+    properties: ['openFile', 'showHiddenFiles'],
+    filters: [
+      { name: 'SSH Keys', extensions: ['pem', 'ppk', 'key', 'id_rsa', 'pub', ''] },
+      { name: 'All Files', extensions: ['*'] }
+    ]
+  })
+  if (canceled) return null
+  return filePaths[0]
+})
+
+// 2. 读取文件内容 (这是 readFile 的后端实现)
+ipcMain.handle('file-read', async (_event, filePath) => {
+  try {
+    if (!filePath || !fs.existsSync(filePath)) return '';
+    // 读取文件内容并返回
+    const content = await fs.promises.readFile(filePath, 'utf-8');
+    return content;
+  } catch (error: any) {
+    console.error(`Error reading file ${filePath}:`, error);
+    return `Error reading file: ${error.message}`;
+  }
+})

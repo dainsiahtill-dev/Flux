@@ -1,5 +1,8 @@
+// electron/preload.ts
 import { contextBridge, ipcRenderer } from 'electron'
+
 contextBridge.exposeInMainWorld('electronAPI', {
+  // 窗口控制
   minimize: () => ipcRenderer.send('window-minimize'),
   maximize: () => ipcRenderer.send('window-maximize'),
   close: () => ipcRenderer.send('window-close'),
@@ -7,7 +10,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onMaximized: (cb: () => void) => ipcRenderer.on('window-maximized', cb),
   onRestored: (cb: () => void) => ipcRenderer.on('window-restored', cb),
 
-  // Session 相关
+  // Session
   sendInput: (payload: any) => ipcRenderer.send('terminal-input', payload),
   resizeTerminal: (payload: any) => ipcRenderer.send('terminal-resize', payload),
   onTerminalData: (callback: (payload: { id: string; data: string }) => void) =>
@@ -19,9 +22,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onSessionStatus: (callback: (payload: { id: string; status: string; log?: string }) => void) =>
     ipcRenderer.on('session-status', (_event, value) => callback(value)),
 
-  /** 读取主机列表 (Promise) */
+  // Hosts
   getHosts: () => ipcRenderer.invoke('hosts-get'),
-
-  /** 保存主机列表 (fire and forget) */
   saveHosts: (hosts: any[]) => ipcRenderer.invoke('hosts-save', hosts),
+
+  // ✅ Keys & Files (确保这些 API 已暴露)
+  getKeys: () => ipcRenderer.invoke('keys-get'),
+  saveKeys: (keys: any[]) => ipcRenderer.invoke('keys-save', keys),
+  openFileDialog: () => ipcRenderer.invoke('dialog-open-file'),
+  readFile: (path: string) => ipcRenderer.invoke('file-read', path), 
 })

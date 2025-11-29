@@ -1,90 +1,127 @@
 <script setup lang="ts">
-// 引入新组件
+import { onMounted, ref } from 'vue'
 import TitleBar from './components/layout/TitleBar.vue'
-
 import Sidebar from './components/layout/Sidebar.vue'
 import TopTabBar from './components/layout/TopTabBar.vue'
 import HostsManager from './views/HostsManager.vue'
+import KeychainManager from './views/KeychainManager.vue' // ✅ 引入新组件
 import TerminalView from './components/TerminalView.vue'
+import CommandPalette from './components/CommandPalette.vue' // 建议加上命令面板，如果项目中有的话
 import { useUiStore } from './stores/uiStore'
 import { useSessionStore } from './stores/sessionStore'
 
-import { onMounted, ref } from 'vue'
-
 const uiStore = useUiStore()
 const sessionStore = useSessionStore()
-
 
 // 用于存储所有 TerminalView 组件的引用 (Key: sessionId, Value: Component Instance)
 const terminalRefs = ref<Record<string, any>>({})
 
 onMounted(async () => {
-  await sessionStore.loadHosts()
+  // ✅ 并行加载主机列表和密钥列表
+  await Promise.all([
+    sessionStore.loadHosts(),
+    sessionStore.loadKeys()
+  ])
 
   // [核心逻辑] 全局监听后端发来的终端数据
-  window.electronAPI.onTerminalData(({ id, data }: { id: string, data: string }) => {
-    // 1. 根据 ID 找到对应的组件实例
-    const terminalInstance = terminalRefs.value[id]
+  if (window.electronAPI) {
+    window.electronAPI.onTerminalData(({ id, data }: { id: string, data: string }) => {
+      // 1. 根据 ID 找到对应的组件实例
+      const terminalInstance = terminalRefs.value[id]
 
-    // 2. 如果组件存在，写入数据
-    if (terminalInstance) {
-      terminalInstance.write(data)
-    } else {
-      console.warn(`Terminal instance not found for session ID: ${id}`)
-    }
+      // 2. 如果组件存在，写入数据
+      if (terminalInstance) {
+        terminalInstance.write(data)
+      } else {
+        // 如果是刚刚创建的会话，组件可能还没挂载完成，这里可以做一个简单的重试或者忽略
+        // console.warn(`Terminal instance not found for session ID: ${id}`)
+      }
+    })
 
     window.electronAPI.onSessionEnded(({ id }: { id: string }) => {
       console.log(`Session ended: ${id}`)
       // 调用 Store 的关闭逻辑，这将移除 UI 标签并自动切换焦点
       sessionStore.closeSession(id)
     })
-  })
 
-  window.electronAPI.onSessionStatus(({ id, status, log }) => {
-    // 映射后端 status 到前端 Store 的 status
-    sessionStore.updateSessionStatus(id, status as any, log)
-  })
+    window.electronAPI.onSessionStatus(({ id, status, log }: any) => {
+      // 映射后端 status 到前端 Store 的 status
+      sessionStore.updateSessionStatus(id, status as any, log)
+    })
+  }
 })
 </script>
 
 <template>
-  <div class="flex flex-col h-screen w-screen bg-cyber-black font-sans overflow-hidden border border-cyber-dark">
+  <div class="flex flex-col h-screen w-screen bg-cyber-black font-sans overflow-hidden border border-cyber-dark text-white">
+    
+    <!-- 全局命令面板 (可选) -->
+    <CommandPalette />
 
+    <!-- 顶部标题栏 -->
     <TitleBar class="shrink-0" />
 
     <div class="flex-1 flex min-h-0 overflow-hidden">
 
+      <!-- 左侧导航栏 -->
       <Sidebar class="shrink-0 z-20" />
 
+      <!-- 主内容区域 -->
       <div class="flex-1 flex flex-col min-w-0 relative z-0 bg-cyber-black">
 
+        <!-- 顶部标签页 -->
         <TopTabBar class="shrink-0" />
 
         <div class="flex-1 relative overflow-hidden p-3 flex flex-col">
 
+          <!-- 视图区域：管理界面 (非终端模式) -->
           <div v-if="uiStore.currentView !== 'terminal'"
             class="flex-1 rounded-lg bg-cyber-dark border border-neon-blue/20 shadow-neon-blue-inset overflow-hidden relative">
+            
+            <!-- 主机管理 -->
             <HostsManager v-if="uiStore.currentView === 'hosts'" />
-            <div v-else class="h-full flex items-center justify-center text-cyber-text/50 font-mono">
-              module_not_loaded...</div>
-            <div
-              class="pointer-events-none absolute inset-0 bg-[linear-gradient(transparent_50%,rgba(0,243,255,0.05)_50%)] bg-[length:100%_4px]">
+            
+            <!-- ✅ 密钥管理 -->
+            <KeychainManager v-else-if="uiStore.currentView === 'keychain'" />
+            
+            <!-- 端口转发 (暂未实现) -->
+            <div v-else-if="uiStore.currentView === 'port-forwarding'" class="h-full flex flex-col items-center justify-center text-cyber-text/50 font-mono">
+              <span class="text-neon-pink text-4xl mb-4 opacity-50">🚧</span>
+              <span>MODULE_UNDER_CONSTRUCTION...</span>
             </div>
+
+            <!-- 默认/错误状态 -->
+            <div v-else class="h-full flex items-center justify-center text-cyber-text/50 font-mono">
+              module_not_loaded...
+            </div>
+
+            <!-- 装饰性扫描线背景 -->
+            <div class="pointer-events-none absolute inset-0 bg-[linear-gradient(transparent_50%,rgba(0,243,255,0.05)_50%)] bg-[length:100%_4px] opacity-50"></div>
           </div>
 
+          <!-- 视图区域：终端模式 -->
           <div v-show="uiStore.currentView === 'terminal'"
             class="flex-1 rounded-lg border border-neon-blue/50 shadow-neon-blue-inset bg-black flex flex-col overflow-hidden relative p-1">
+            
+            <!-- 空状态 -->
             <div v-if="sessionStore.sessions.length === 0"
               class="flex-1 flex flex-col items-center justify-center text-cyber-text opacity-50 font-mono tracking-widest">
-              <div class="mb-4 animate-pulse text-neon-blue">AWAITING INPUT SIGNAL...</div>
-              <div class="text-sm">Select a host node to initiate connection sequence.</div>
+              <div class="mb-4 animate-pulse text-neon-blue text-lg">AWAITING INPUT SIGNAL...</div>
+              <div class="text-xs">Select a host node to initiate connection sequence.</div>
             </div>
 
-            <TerminalView v-for="session in sessionStore.sessions" :key="session.id" :session-id="session.id"
+            <!-- 终端实例列表 (使用 v-show 保持后台运行) -->
+            <TerminalView 
+              v-for="session in sessionStore.sessions" 
+              :key="session.id" 
+              :session-id="session.id"
               :ref="(el) => { if (el) terminalRefs[session.id] = el }"
-              v-show="sessionStore.activeSessionId === session.id" class="flex-1" />
-            <div class="pointer-events-none absolute inset-0 shadow-[inset_0_0_100px_rgba(0,0,0,0.8)] z-10 rounded-lg">
-            </div>
+              v-show="sessionStore.activeSessionId === session.id" 
+              class="flex-1" 
+            />
+            
+            <!-- CRT 屏幕效果遮罩 -->
+            <div class="pointer-events-none absolute inset-0 shadow-[inset_0_0_100px_rgba(0,0,0,0.8)] z-10 rounded-lg mix-blend-multiply"></div>
           </div>
 
         </div>

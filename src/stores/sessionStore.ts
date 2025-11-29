@@ -2,6 +2,12 @@ import { defineStore } from 'pinia'
 import { v4 as uuidv4 } from 'uuid'
 import { useUiStore } from './uiStore'
 
+export interface SavedKey {
+  id: string;
+  alias: string; // 比如 "AWS Production Key"
+  path: string;  // 本地绝对路径
+}
+
 // --- 类型定义 ---
 export interface SavedHost {
   id: string;
@@ -34,7 +40,8 @@ export const useSessionStore = defineStore('session', {
   state: () => ({
     sessions: [] as Session[],
     activeSessionId: '' as string,
-    savedHosts: [] as SavedHost[] 
+    savedHosts: [] as SavedHost[],
+    savedKeys: [] as SavedKey[]
   }),
 
   actions: {
@@ -60,6 +67,60 @@ export const useSessionStore = defineStore('session', {
         }
       }
     },
+    async deleteHost(id: string) {
+      const index = this.savedHosts.findIndex(h => h.id === id)
+      if (index !== -1) {
+        this.savedHosts.splice(index, 1)
+        await this.persistHosts()
+      }
+    },
+
+    async updateHostPassword(sessionId: string, newPassword: string) {
+      const session = this.sessions.find(s => s.id === sessionId)
+      if (!session || !session.savedHostId) return
+
+      const host = this.savedHosts.find(h => h.id === session.savedHostId)
+      if (host) {
+        console.log(`[SessionStore] Auto-saving credential for host ${host.alias}`)
+        host.password = newPassword 
+        await this.persistHosts()
+      }
+    },
+    async loadKeys() {
+      if (window.electronAPI) {
+        try {
+          const keys = await window.electronAPI.getKeys()
+          this.savedKeys = keys || []
+        } catch (error) {
+          console.error('Failed to load keys:', error)
+        }
+      }
+    },
+    async persistKeys() {
+      if (window.electronAPI) {
+        try {
+          const data = JSON.parse(JSON.stringify(this.savedKeys))
+          await window.electronAPI.saveKeys(data)
+        } catch (error) {
+          console.error('Failed to save keys:', error)
+        }
+      }
+    },
+    async saveKey(keyData: Partial<SavedKey>) {
+      if (keyData.id) {
+        const index = this.savedKeys.findIndex(k => k.id === keyData.id)
+        if (index !== -1) {
+          this.savedKeys[index] = { ...this.savedKeys[index], ...keyData } as SavedKey
+        }
+      } else {
+        this.savedKeys.push({
+          id: uuidv4(),
+          alias: keyData.alias || 'Untitled Key',
+          path: keyData.path || ''
+        })
+      }
+      await this.persistKeys()
+    },
 
     async saveHost(hostData: Partial<SavedHost>) {
       if (hostData.id) {
@@ -83,24 +144,11 @@ export const useSessionStore = defineStore('session', {
       }
       await this.persistHosts()
     },
-
-    async deleteHost(id: string) {
-      const index = this.savedHosts.findIndex(h => h.id === id)
+    async deleteKey(id: string) {
+      const index = this.savedKeys.findIndex(k => k.id === id)
       if (index !== -1) {
-        this.savedHosts.splice(index, 1)
-        await this.persistHosts()
-      }
-    },
-
-    async updateHostPassword(sessionId: string, newPassword: string) {
-      const session = this.sessions.find(s => s.id === sessionId)
-      if (!session || !session.savedHostId) return
-
-      const host = this.savedHosts.find(h => h.id === session.savedHostId)
-      if (host) {
-        console.log(`[SessionStore] Auto-saving credential for host ${host.alias}`)
-        host.password = newPassword 
-        await this.persistHosts()
+        this.savedKeys.splice(index, 1)
+        await this.persistKeys()
       }
     },
 

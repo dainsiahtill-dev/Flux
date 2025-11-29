@@ -2,9 +2,8 @@
 import { computed, ref, watch } from 'vue'
 import { useUiStore } from '../stores/uiStore'
 import { useSessionStore } from '../stores/sessionStore'
-import { X, Save, Power, Trash2, KeyRound, FileKey, Eye, EyeOff, Terminal } from 'lucide-vue-next'
+import { X, Save, Power, Trash2, KeyRound, FileKey, Eye, EyeOff, Terminal, FolderOpen } from 'lucide-vue-next'
 
-// ... 前面的 imports 和 logic 保持不变 ...
 const uiStore = useUiStore()
 const sessionStore = useSessionStore()
 
@@ -21,13 +20,12 @@ const formData = ref<any>({
   authType: 'password',
   password: '',
   privateKeyPath: '',
-  useNativeSSH: false // ✅ 新增
+  useNativeSSH: false
 })
 
 const originalData = ref<string>('')
 const showPassword = ref(false)
 
-// ... hasChanges, watch, close 等逻辑保持不变 ...
 const hasChanges = computed(() => {
   if (!isEditMode.value) return !!formData.value.host
   return JSON.stringify(formData.value) !== originalData.value
@@ -73,10 +71,45 @@ watch(
 
 const close = () => uiStore.closeHostDetail()
 
-const handleMainAction = () => {
+// ✅ 新增：打开文件选择
+const pickFile = async () => {
+  if (window.electronAPI) {
+    const path = await window.electronAPI.openFileDialog()
+    if (path) {
+      formData.value.privateKeyPath = path
+    }
+  }
+}
+
+// ✅ 新增：自动将私钥保存到 Keychain
+const autoSaveKeyToKeychain = async () => {
+  const { authType, privateKeyPath } = formData.value
+  
+  if (authType === 'privateKey' && privateKeyPath) {
+    // 检查是否已存在
+    const exists = sessionStore.savedKeys.some(k => k.path === privateKeyPath)
+    
+    if (!exists) {
+      console.log('[AutoSave] New key detected, adding to keychain:', privateKeyPath)
+      // 提取文件名作为别名
+      const filename = privateKeyPath.split(/[\\/]/).pop() || 'Auto-saved Key'
+      
+      await sessionStore.saveKey({
+        alias: filename,
+        path: privateKeyPath
+      })
+    }
+  }
+}
+
+const handleMainAction = async () => {
   if (!formData.value.host) return 
+  
+  // 尝试自动保存 Key
+  await autoSaveKeyToKeychain()
+
   if (!isEditMode.value) {
-    sessionStore.saveHost(formData.value)
+    await sessionStore.saveHost(formData.value)
     sessionStore.addSession(formData.value)
   } else {
     sessionStore.addSession(formData.value)
@@ -84,8 +117,11 @@ const handleMainAction = () => {
   close()
 }
 
-const save = () => {
-  sessionStore.saveHost(formData.value)
+const save = async () => {
+  // 尝试自动保存 Key
+  await autoSaveKeyToKeychain()
+
+  await sessionStore.saveHost(formData.value)
   originalData.value = JSON.stringify(formData.value)
   if (!isEditMode.value) close()
 }
@@ -114,7 +150,6 @@ const remove = () => {
     </div>
 
     <div class="flex-1 overflow-y-auto p-6 space-y-6">
-      <!-- ... Alias, Group, Host IP, User, Port 等输入框保持不变 ... -->
       <div class="grid grid-cols-2 gap-4">
         <div class="group">
           <label class="block text-[10px] text-cyber-text/50 uppercase mb-1">Alias / Name</label>
@@ -168,9 +203,38 @@ const remove = () => {
           </button>
         </div>
 
-        <div v-if="formData.authType === 'privateKey'" class="animate-in fade-in slide-in-from-top-2 duration-300 mb-4">
-           <label class="block text-[10px] text-cyber-text/50 uppercase mb-1">Private Key Path</label>
-           <input v-model="formData.privateKeyPath" type="text" class="cyber-input font-mono text-xs" placeholder="e.g. C:/Users/name/.ssh/id_rsa" />
+        <div v-if="formData.authType === 'privateKey'" class="animate-in fade-in slide-in-from-top-2 duration-300 mb-4 space-y-3">
+           
+           <!-- ✅ 1. 快速选择已保存的 Key -->
+           <div v-if="sessionStore.savedKeys.length > 0">
+              <label class="block text-[10px] text-cyber-text/50 uppercase mb-1">Select from Keychain</label>
+              <select 
+                @change="(e: any) => formData.privateKeyPath = e.target.value"
+                class="w-full bg-cyber-black border border-cyber-text/30 rounded text-xs text-cyber-text-bright p-2 focus:border-neon-blue focus:outline-none"
+              >
+                <option value="" disabled selected>-- Select a Key --</option>
+                <option v-for="key in sessionStore.savedKeys" :key="key.id" :value="key.path">
+                  {{ key.alias }}
+                </option>
+              </select>
+           </div>
+
+           <!-- ✅ 2. 手动输入或浏览文件 -->
+           <div>
+             <label class="block text-[10px] text-cyber-text/50 uppercase mb-1">
+                {{ sessionStore.savedKeys.length > 0 ? 'Or Manual Path' : 'Private Key Path' }}
+             </label>
+             <div class="flex items-center space-x-2">
+                <input v-model="formData.privateKeyPath" type="text" class="cyber-input font-mono text-xs" placeholder="e.g. C:/Users/name/.ssh/id_rsa" />
+                <button 
+                  @click="pickFile"
+                  class="p-1.5 border border-cyber-text/30 rounded text-cyber-text/50 hover:text-neon-blue hover:border-neon-blue transition-colors bg-cyber-light/10"
+                  title="Browse File"
+                >
+                  <FolderOpen size="14" />
+                </button>
+             </div>
+           </div>
         </div>
 
         <div class="animate-in fade-in slide-in-from-top-2 duration-300">
@@ -192,7 +256,6 @@ const remove = () => {
         </div>
       </div>
 
-      <!-- ✅ 新增：Native SSH 开关 -->
       <div class="pt-4 border-t border-cyber-text/10">
         <label class="flex items-center space-x-3 cursor-pointer group">
            <div class="relative">
@@ -210,7 +273,6 @@ const remove = () => {
 
     </div>
 
-    <!-- ... 底部按钮保持不变 ... -->
     <div class="p-6 border-t border-neon-blue/10 bg-cyber-black/50 space-y-3 shrink-0">
       <button 
         @click="handleMainAction"
