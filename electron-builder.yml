@@ -1,0 +1,14 @@
+# electron-builder.yml - 生产环境完整配置
+# 应用标识和元数据（必须）
+appId: com.titan.flux          # 应用唯一标识（反向域名格式）
+productName: Flux Terminal        # 产品名称（支持中文和空格）
+copyright: Copyright © 2025 Soughtman Studio # 版权信息
+compression: maximum               # 压缩级别（none | store | normal | maximum）
+asar: true                       # 是否使用asar打包资源（true | false）
+# 目录配置
+directories:
+  output: release                      # 打包输出目录
+win:
+  target:
+    - nsis                           # Windows安装程序格式
+  icon: ./src/assets/icon.ico          # 应用图标路径

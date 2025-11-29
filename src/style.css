@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 确保 body 样式应用了颜色 */
+body {
+  @apply bg-cyber-black text-white overflow-hidden;
+  margin: 0; /* 防止默认边距 */
+  width: 100vw;
+  height: 100vh;
+}
+
+/* 赛博朋克风格滚动条 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-cyber-black border-l border-cyber-light;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-cyber-light rounded-sm hover:bg-neon-blue/50 transition-colors;
+  border: 1px solid rgba(0, 243, 255, 0.2);
+}
+
+/* 实用工具类：磨砂玻璃 */
+.glass-panel {
+  @apply bg-cyber-dark/80 backdrop-blur-md;
+}
