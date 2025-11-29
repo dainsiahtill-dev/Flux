@@ -47,4 +47,8 @@ git clone [https://github.com/yourusername/flux-terminal.git](https://github.com
 npm install
 
 # Start Development Server
+<<<<<<< HEAD
 npm run dev
+=======
+npm run dev
+>>>>>>> 81f501a29fceac5e645a3062b867381e410820ed
