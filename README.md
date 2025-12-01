@@ -54,7 +54,7 @@ Whether you are managing a fleet of cloud servers or hacking on your local machi
 
 ```bash
 # Clone the repository
-git clone [https://github.com/yourusername/flux-terminal.git](https://github.com/yourusername/flux-terminal.git)
+git clone https://github.com/dainsiahtill-dev/Flux.git/
 
 # Install dependencies
 npm install
