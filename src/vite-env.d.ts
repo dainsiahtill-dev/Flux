@@ -27,5 +27,17 @@ interface Window {
     saveKeys: (keys: any[]) => Promise<boolean>;
     openFileDialog: () => Promise<string | null>;
     readFile: (path: string) => Promise<string | null>;
+    readDir: (path?: string) => Promise<{
+      path: string;
+      entries: { name: string; type: 'file' | 'dir'; size: number | string; modified: number }[];
+      error?: string;
+    }>;
+    sftpReadDir: (payload: { id: string; path?: string }) => Promise<{
+      path: string;
+      entries: { name: string; type: 'file' | 'dir'; size: number | string; modified: number }[];
+      error?: string;
+    }>;
+    sftpUpload: (payload: { id: string; localPath: string; remotePath: string }) => Promise<{ success: boolean; error?: string }>;
+    sftpDownload: (payload: { id: string; remotePath: string; localPath: string }) => Promise<{ success: boolean; error?: string }>;
   }
 }

@@ -6,6 +6,7 @@ import TopTabBar from './components/layout/TopTabBar.vue'
 import HostsManager from './views/HostsManager.vue'
 import KeychainManager from './views/KeychainManager.vue' // ✅ 引入新组件
 import TerminalView from './components/TerminalView.vue'
+import SftpView from './components/SftpView.vue'
 import CommandPalette from './components/CommandPalette.vue' // 建议加上命令面板，如果项目中有的话
 import { useUiStore } from './stores/uiStore'
 import { useSessionStore } from './stores/sessionStore'
@@ -110,15 +111,22 @@ onMounted(async () => {
               <div class="text-xs">Select a host node to initiate connection sequence.</div>
             </div>
 
-            <!-- 终端实例列表 (使用 v-show 保持后台运行) -->
-            <TerminalView 
-              v-for="session in sessionStore.sessions" 
-              :key="session.id" 
-              :session-id="session.id"
-              :ref="(el) => { if (el) terminalRefs[session.id] = el }"
-              v-show="sessionStore.activeSessionId === session.id" 
-              class="flex-1" 
-            />
+            <!-- 会话实例列表：终端 & SFTP -->
+            <template v-for="session in sessionStore.sessions" :key="session.id">
+              <TerminalView 
+                v-if="session.type !== 'sftp'"
+                :session-id="session.id"
+                :ref="(el) => { if (el) terminalRefs[session.id] = el }"
+                v-show="sessionStore.activeSessionId === session.id" 
+                class="flex-1" 
+              />
+              <SftpView
+                v-else
+                :session-id="session.id"
+                v-show="sessionStore.activeSessionId === session.id"
+                class="flex-1"
+              />
+            </template>
             
             <!-- CRT 屏幕效果遮罩 -->
             <div class="pointer-events-none absolute inset-0 shadow-[inset_0_0_100px_rgba(0,0,0,0.8)] z-10 rounded-lg mix-blend-multiply"></div>

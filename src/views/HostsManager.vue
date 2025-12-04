@@ -19,6 +19,7 @@ const filteredHosts = computed(() =>
 
 // 动作
 const connectSSH = (host: any) => sessionStore.addSession(host)
+const connectSftp = (host: any) => sessionStore.addSftpSession(host)
 const connectLocal = () => sessionStore.addLocalSession()
 const openDetail = (host: any) => uiStore.openHostDetail(host.id)
 </script>
@@ -98,12 +99,20 @@ const openDetail = (host: any) => uiStore.openHostDetail(host.id)
                    </div>
                 </div>
                 
-                <button 
-                  @click.stop="connectSSH(host)"
-                  class="opacity-0 group-hover:opacity-100 px-3 py-1 text-[10px] bg-neon-blue/10 text-neon-blue border border-neon-blue/50 rounded hover:bg-neon-blue hover:text-black transition-all font-bold tracking-wider"
-                >
-                  CONNECT
-                </button>
+                <div class="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-all">
+                  <button 
+                    @click.stop="connectSSH(host)"
+                    class="px-3 py-1 text-[10px] bg-neon-blue/10 text-neon-blue border border-neon-blue/50 rounded hover:bg-neon-blue hover:text-black transition-all font-bold tracking-wider"
+                  >
+                    SSH
+                  </button>
+                  <button 
+                    @click.stop="connectSftp(host)"
+                    class="px-3 py-1 text-[10px] bg-neon-pink/10 text-neon-pink border border-neon-pink/50 rounded hover:bg-neon-pink hover:text-black transition-all font-bold tracking-wider"
+                  >
+                    SFTP
+                  </button>
+                </div>
               </div>
            </div>
         </section>

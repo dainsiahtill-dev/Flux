@@ -2,13 +2,13 @@ import { EventEmitter } from 'events'
 
 export interface SessionOptions {
   id: string;
-  type: 'ssh' | 'local';
-  [key: string]: any; // 允许由 SSH 配置或 Shell 配置扩展
+  type: 'ssh' | 'local' | 'sftp';
+  [key: string]: any; // 允许由 SSH/SFTP 配置或 Shell 配置扩展
 }
 
 export abstract class BaseSession extends EventEmitter {
   public id: string;
-  public type: 'ssh' | 'local';
+  public type: 'ssh' | 'local' | 'sftp';
 
   constructor(options: SessionOptions) {
     super();

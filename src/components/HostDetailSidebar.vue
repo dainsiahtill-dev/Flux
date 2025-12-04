@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useUiStore } from '../stores/uiStore'
 import { useSessionStore } from '../stores/sessionStore'
-import { X, Save, Power, Trash2, KeyRound, FileKey, Eye, EyeOff, Terminal, FolderOpen } from 'lucide-vue-next'
+import { X, Save, Power, Trash2, KeyRound, FileKey, Eye, EyeOff, Terminal, FolderOpen, FolderGit2 } from 'lucide-vue-next'
 
 const uiStore = useUiStore()
 const sessionStore = useSessionStore()
@@ -100,6 +100,19 @@ const autoSaveKeyToKeychain = async () => {
       })
     }
   }
+}
+
+const connectSftp = async () => {
+  if (!formData.value.host) return
+
+  await autoSaveKeyToKeychain()
+
+  if (!isEditMode.value) {
+    await sessionStore.saveHost(formData.value)
+  }
+
+  sessionStore.addSftpSession(formData.value)
+  close()
 }
 
 const handleMainAction = async () => {
@@ -273,14 +286,23 @@ const remove = () => {
 
     </div>
 
-    <div class="p-6 border-t border-neon-blue/10 bg-cyber-black/50 space-y-3 shrink-0">
-      <button 
-        @click="handleMainAction"
-        class="w-full py-3 bg-neon-blue text-black font-bold uppercase tracking-widest rounded hover:bg-white hover:shadow-[0_0_15px_rgba(0,243,255,0.8)] transition-all flex items-center justify-center space-x-2 group"
-      >
-        <Power size="18" class="group-hover:animate-pulse" />
-        <span>CONNECT</span>
-      </button>
+    <div class="p-6 border-t border-neon-blue/10 bg-cyber-black/50 space-y-4 shrink-0">
+      <div class="grid grid-cols-2 gap-3">
+        <button 
+          @click="handleMainAction"
+          class="w-full py-3 bg-neon-blue text-black font-bold uppercase tracking-widest rounded hover:bg-white hover:shadow-[0_0_15px_rgba(0,243,255,0.8)] transition-all flex items-center justify-center space-x-2 group"
+        >
+          <Power size="18" class="group-hover:animate-pulse" />
+          <span>SSH Terminal</span>
+        </button>
+        <button 
+          @click="connectSftp"
+          class="w-full py-3 bg-neon-pink/20 text-neon-pink font-bold uppercase tracking-widest rounded border border-neon-pink/60 hover:bg-neon-pink hover:text-black hover:shadow-[0_0_15px_rgba(255,0,255,0.5)] transition-all flex items-center justify-center space-x-2 group"
+        >
+          <FolderGit2 size="18" class="group-hover:drop-shadow-[0_0_6px_rgba(255,0,255,0.6)]" />
+          <span>SFTP Browser</span>
+        </button>
+      </div>
       
       <Transition 
         enter-active-class="transition-all duration-300 ease-out"

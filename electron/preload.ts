@@ -1,5 +1,5 @@
 // electron/preload.ts
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 contextBridge.exposeInMainWorld('electronAPI', {
   // 窗口控制
@@ -31,4 +31,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveKeys: (keys: any[]) => ipcRenderer.invoke('keys-save', keys),
   openFileDialog: () => ipcRenderer.invoke('dialog-open-file'),
   readFile: (path: string) => ipcRenderer.invoke('file-read', path), 
+  fsStat: (path: string) => ipcRenderer.invoke('fs-stat', path),
+  readDir: (path?: string) => ipcRenderer.invoke('fs-read-dir', path),
+  sftpReadDir: (payload: { id: string, path?: string }) => ipcRenderer.invoke('sftp-read-dir', payload),
+  sftpUpload: (payload: { id: string, localPath: string, remotePath: string, transferId?: string }) => ipcRenderer.invoke('sftp-upload', payload),
+  sftpDownload: (payload: { id: string, remotePath: string, localPath: string, transferId?: string }) => ipcRenderer.invoke('sftp-download', payload),
+  sftpRename: (payload: { id: string, oldPath: string, newPath: string }) => ipcRenderer.invoke('sftp-rename', payload),
+  sftpCreateDir: (payload: { id: string, path: string }) => ipcRenderer.invoke('sftp-create-dir', payload),
+  sftpDelete: (payload: { id: string, path: string }) => ipcRenderer.invoke('sftp-delete', payload),
+  fsRename: (payload: { oldPath: string, newPath: string }) => ipcRenderer.invoke('fs-rename', payload),
+  fsCreateDir: (payload: { path: string }) => ipcRenderer.invoke('fs-create-dir', payload),
+  fsDelete: (payload: { path: string }) => ipcRenderer.invoke('fs-delete', payload),
+  cancelTransfer: (payload: { id: string, transferId: string }) => ipcRenderer.send('sftp-cancel-transfer', payload),
+  onTransferProgress: (callback: (payload: { sessionId: string, id: string, transferred: number, total: number, percent: number }) => void) =>
+    ipcRenderer.on('transfer-progress', (_event, value) => callback(value)),
+  
+  // Utils
+  getPathForFile: (file: File) => webUtils.getPathForFile(file),
 })

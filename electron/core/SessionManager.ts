@@ -3,6 +3,7 @@ import { BaseSession } from './BaseSession'
 import { LocalSession } from './LocalSession'
 import { SshSession } from './SshSession'
 import { OpenSshSession } from './OpenSshSession' // 引入新类
+import { SftpSession } from './SftpSession'
 
 export class SessionManager {
   private sessions: Map<string, BaseSession> = new Map();
@@ -26,6 +27,8 @@ export class SessionManager {
 
     if (type === 'local') {
       session = new LocalSession({ id, type });
+    } else if (type === 'sftp') {
+      session = new SftpSession({ id, type });
     } else {
       // ✅ 路由逻辑：如果启用了 Native SSH，则使用 OpenSshSession
       if (useNativeSSH) {
@@ -48,6 +51,9 @@ export class SessionManager {
     });
     session.on('error', (err) => {
       console.error(`[SessionManager] Session ${id} error:`, err);
+    });
+    session.on('transfer-progress', (payload) => {
+      if (!sender.isDestroyed()) sender.send('transfer-progress', { sessionId: id, ...payload });
     });
 
     this.sessions.set(id, session);
@@ -85,5 +91,66 @@ export class SessionManager {
   killAll() {
     this.sessions.forEach(s => s.kill());
     this.sessions.clear();
+  }
+
+  async readSftpDir(id: string, remotePath?: string) {
+    const session = this.sessions.get(id);
+    if (!session || session.type !== 'sftp') {
+      throw new Error('Session not found or not SFTP');
+    }
+    const sftpSession = session as SftpSession;
+    return sftpSession.listDir(remotePath);
+  }
+
+  async uploadSftp(id: string, localPath: string, remotePath: string, transferId?: string) {
+    const session = this.sessions.get(id);
+    if (!session || session.type !== 'sftp') {
+      throw new Error('Session not found or not SFTP');
+    }
+    const sftpSession = session as SftpSession;
+    return sftpSession.uploadFile(localPath, remotePath, transferId);
+  }
+
+  async downloadSftp(id: string, remotePath: string, localPath: string, transferId?: string) {
+    const session = this.sessions.get(id);
+    if (!session || session.type !== 'sftp') {
+      throw new Error('Session not found or not SFTP');
+    }
+    const sftpSession = session as SftpSession;
+    return sftpSession.downloadFile(remotePath, localPath, transferId);
+  }
+
+  cancelTransfer(id: string, transferId: string) {
+    const session = this.sessions.get(id);
+    if (session && session.type === 'sftp') {
+      (session as SftpSession).cancelTransfer(transferId);
+    }
+  }
+
+  async renameSftp(id: string, oldPath: string, newPath: string) {
+    const session = this.sessions.get(id);
+    if (!session || session.type !== 'sftp') {
+      throw new Error('Session not found or not SFTP');
+    }
+    const sftpSession = session as SftpSession;
+    return sftpSession.rename(oldPath, newPath);
+  }
+
+  async createDirSftp(id: string, path: string) {
+    const session = this.sessions.get(id);
+    if (!session || session.type !== 'sftp') {
+      throw new Error('Session not found or not SFTP');
+    }
+    const sftpSession = session as SftpSession;
+    return sftpSession.createDir(path);
+  }
+
+  async deleteSftp(id: string, path: string) {
+    const session = this.sessions.get(id);
+    if (!session || session.type !== 'sftp') {
+      throw new Error('Session not found or not SFTP');
+    }
+    const sftpSession = session as SftpSession;
+    return sftpSession.delete(path);
   }
 }

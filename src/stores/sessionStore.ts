@@ -23,7 +23,7 @@ export interface SavedHost {
 
 export interface Session {
   id: string;
-  type: 'ssh' | 'local';
+  type: 'ssh' | 'local' | 'sftp';
   name: string;
   user?: string;
   // ✅ 新增：让 Session 记住自己的认证方式和密钥路径
@@ -181,6 +181,31 @@ export const useSessionStore = defineStore('session', {
       
       if (window.electronAPI) {
         window.electronAPI.initSession({ ...hostConfig, id, type: 'ssh' })
+      }
+    },
+
+    addSftpSession(hostConfig: SavedHost) {
+      const id = uuidv4()
+      const uiStore = useUiStore()
+
+      this.sessions.push({
+        id,
+        type: 'sftp',
+        name: `${hostConfig.alias || hostConfig.host} / SFTP`,
+        host: hostConfig.host,
+        user: hostConfig.user,
+        authType: hostConfig.authType || 'password',
+        privateKeyPath: hostConfig.privateKeyPath,
+        savedHostId: hostConfig.id,
+        status: 'connecting',
+        logs: [`Opening SFTP to ${hostConfig.host}...`]
+      })
+
+      this.setActive(id)
+      uiStore.showTerminal()
+
+      if (window.electronAPI) {
+        window.electronAPI.initSession({ ...hostConfig, id, type: 'sftp' })
       }
     },
 

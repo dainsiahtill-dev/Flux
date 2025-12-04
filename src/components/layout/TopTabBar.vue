@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useSessionStore } from '../../stores/sessionStore'
 import { useUiStore } from '../../stores/uiStore'
-import { X, Plus, SquareTerminal } from 'lucide-vue-next'
+import { X, Plus, SquareTerminal, FolderGit2 } from 'lucide-vue-next'
 
 const sessionStore = useSessionStore()
 const uiStore = useUiStore()
@@ -45,22 +45,32 @@ const addNew = () => uiStore.openCreateHost()
         class="group relative flex items-center h-10 px-5 pr-3 min-w-[160px] max-w-[240px] cursor-pointer transition-all duration-300 ease-out shrink-0"
         :class="[
           sessionStore.activeSessionId === session.id && uiStore.currentView === 'terminal'
-            ? 'z-10 bg-cyber-light text-neon-blue' 
+            ? (session.type === 'sftp' ? 'z-10 bg-cyber-light text-neon-pink' : 'z-10 bg-cyber-light text-neon-blue') 
             : 'text-cyber-text hover:text-cyber-text-bright hover:bg-cyber-light/30 opacity-60 hover:opacity-100'
         ]"
         style="clip-path: polygon(10% 0, 90% 0, 100% 100%, 0% 100%);" 
       >
-        <SquareTerminal 
+        <component 
+          :is="session.type === 'sftp' ? FolderGit2 : SquareTerminal"
           size="16" 
           class="mr-3 transition-all duration-300" 
           :class="{
-            'stroke-neon-blue drop-shadow-[0_0_5px_rgba(0,243,255,0.8)]': sessionStore.activeSessionId === session.id && uiStore.currentView === 'terminal',
+            'stroke-neon-blue drop-shadow-[0_0_5px_rgba(0,243,255,0.8)]': session.type !== 'sftp' && sessionStore.activeSessionId === session.id && uiStore.currentView === 'terminal',
+            'stroke-neon-pink drop-shadow-[0_0_5px_rgba(255,0,255,0.8)]': session.type === 'sftp' && sessionStore.activeSessionId === session.id && uiStore.currentView === 'terminal',
             'opacity-70': sessionStore.activeSessionId !== session.id
           }" 
         />
-        <span class="text-xs font-bold truncate flex-1 tracking-wider font-mono">
-          {{ session.name }}
-        </span>
+        <div class="flex items-center space-x-2 flex-1 overflow-hidden">
+          <span class="text-xs font-bold truncate flex-1 tracking-wider font-mono">
+            {{ session.name }}
+          </span>
+          <span 
+            v-if="session.type === 'sftp'" 
+            class="text-[10px] px-2 py-0.5 rounded-full border border-neon-pink/40 text-neon-pink bg-neon-pink/10 font-bold tracking-wider"
+          >
+            SFTP
+          </span>
+        </div>
         <div 
           @click="(e) => closeTab(e, session.id)"
           class="ml-2 p-0.5 rounded hover:bg-neon-pink/20 hover:text-neon-pink opacity-0 group-hover:opacity-100 transition-all duration-200"
@@ -69,7 +79,8 @@ const addNew = () => uiStore.openCreateHost()
         </div>
         <div 
           v-if="sessionStore.activeSessionId === session.id && uiStore.currentView === 'terminal'" 
-          class="absolute bottom-0 left-0 right-0 h-[2px] bg-neon-blue shadow-[0_-1px_8px_#00f3ff]"
+          class="absolute bottom-0 left-0 right-0 h-[2px]"
+          :class="session.type === 'sftp' ? 'bg-neon-pink shadow-[0_-1px_8px_#ff00ff]' : 'bg-neon-blue shadow-[0_-1px_8px_#00f3ff]'"
         ></div>
       </div>
     </div>
