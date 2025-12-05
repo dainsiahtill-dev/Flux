@@ -156,14 +156,16 @@ export const useSessionStore = defineStore('session', {
     // 会话控制 (Session Actions)
     // ===========================
     
-    addSession(hostConfig: SavedHost) {
+    addSession(hostConfig: SavedHost, options?: { initialCommand?: string; name?: string }) {
       const id = uuidv4()
       const uiStore = useUiStore()
+      const providedName = options?.name?.trim() || ''
+      const sessionName = providedName.length ? providedName : hostConfig.alias || hostConfig.host
 
       this.sessions.push({
         id,
         type: 'ssh',
-        name: hostConfig.alias || hostConfig.host,
+        name: sessionName,
         host: hostConfig.host,
         user: hostConfig.user,
         
@@ -180,7 +182,7 @@ export const useSessionStore = defineStore('session', {
       uiStore.showTerminal()
       
       if (window.electronAPI) {
-        window.electronAPI.initSession({ ...hostConfig, id, type: 'ssh' })
+        window.electronAPI.initSession({ ...hostConfig, id, type: 'ssh', initialCommand: options?.initialCommand })
       }
     },
 
@@ -227,15 +229,23 @@ export const useSessionStore = defineStore('session', {
       }
     },
 
-    addLocalSession() {
+    addLocalSession(options?: { cwd?: string; name?: string }) {
       const id = uuidv4()
       const uiStore = useUiStore()
+      const providedName = options?.name?.trim() || ''
+      const sessionName = providedName.length ? providedName : 'Local Shell'
+      const logs = options?.cwd ? [`Working directory: ${options.cwd}`] : []
       this.sessions.push({
-        id, type: 'local', name: 'Local Shell', host: 'localhost', status: 'connected', logs: []
+        id,
+        type: 'local',
+        name: sessionName,
+        host: 'localhost',
+        status: 'connected',
+        logs
       })
       this.setActive(id)
       uiStore.showTerminal()
-      if (window.electronAPI) window.electronAPI.initSession({ id, type: 'local' })
+      if (window.electronAPI) window.electronAPI.initSession({ id, type: 'local', cwd: options?.cwd })
     },
 
     setActive(id: string) {

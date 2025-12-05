@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch, nextTick } from 'vue'
 import { useSessionStore } from '../stores/sessionStore'
 import { 
   HardDrive, Server, RefreshCcw, FolderPlus, Upload, Download, 
-  Folder, File, ArrowLeftRight, Search, ArrowUp, X, Trash2, Edit, Info
+  Folder, File, ArrowLeftRight, Search, ArrowUp, X, Trash2, Edit, Info, TerminalSquare
 } from 'lucide-vue-next'
 
 type FileItem = {
@@ -494,7 +494,14 @@ const contextMenu = ref({
   scope: 'local' as 'local' | 'remote'
 })
 
-const openContextMenu = (evt: MouseEvent, item: FileItem, scope: 'local' | 'remote') => {
+const contextMenuTitle = computed(() => {
+  if (contextMenu.value.item) return contextMenu.value.item.name
+  return contextMenu.value.scope === 'local'
+    ? (localPath.value || 'Local Directory')
+    : (remotePath.value || '/')
+})
+
+const openContextMenu = (evt: MouseEvent, item: FileItem | null, scope: 'local' | 'remote') => {
   contextMenu.value = {
     visible: true,
     x: evt.clientX,
@@ -502,6 +509,10 @@ const openContextMenu = (evt: MouseEvent, item: FileItem, scope: 'local' | 'remo
     item,
     scope
   }
+}
+
+const openPaneContextMenu = (evt: MouseEvent, scope: 'local' | 'remote') => {
+  openContextMenu(evt, null, scope)
 }
 
 const closeContextMenu = () => {
@@ -706,6 +717,47 @@ const handleDelete = async () => {
   }
 }
 
+const escapeRemotePath = (value: string) => value.replace(/(["`\\$])/g, '\\$1')
+
+const handleOpenTerminalHere = () => {
+  const { scope, item } = contextMenu.value
+  closeContextMenu()
+
+  if (scope === 'local') {
+    const basePath = localPath.value
+    if (!basePath || basePath === 'This PC') {
+      localError.value = '请选择具体的本地目录再进入终端'
+      return
+    }
+    const target = item ? joinLocalPath(basePath, item.name) : basePath
+    const label = target.split(/[\\/]/).filter(Boolean).pop()
+    sessionStore.addLocalSession({
+      cwd: target,
+      name: label ? `Local · ${label}` : undefined
+    })
+    return
+  }
+
+  if (!session.value?.savedHostId) {
+    remoteError.value = '无法定位关联主机，暂时无法打开终端'
+    return
+  }
+
+  const hostConfig = sessionStore.savedHosts.find(h => h.id === session.value?.savedHostId)
+  if (!hostConfig) {
+    remoteError.value = '无法定位关联主机，暂时无法打开终端'
+    return
+  }
+
+  const baseRemote = remotePath.value && remotePath.value.trim().length ? remotePath.value : '/'
+  const targetPath = item ? joinPath(baseRemote, 'remote', item.name) : baseRemote
+  const command = `cd "${escapeRemotePath(targetPath)}"`
+  sessionStore.addSession(hostConfig, {
+    name: `${hostConfig.alias || hostConfig.host} · ${targetPath}`,
+    initialCommand: command
+  })
+}
+
 onMounted(() => {
   document.addEventListener('click', closeContextMenu)
   loadLocalDir(localPath.value || undefined)
@@ -815,7 +867,11 @@ watch(() => session.value?.status, (status) => {
           <button @click="localError = ''" class="hover:text-red-200"><X size="12" /></button>
         </div>
 
-        <div ref="localListRef" class="flex-1 overflow-y-auto divide-y divide-cyber-text/10 relative">
+        <div 
+          ref="localListRef"
+          class="flex-1 overflow-y-auto divide-y divide-cyber-text/10 relative"
+          @contextmenu.prevent="openPaneContextMenu($event, 'local')"
+        >
           <div 
             v-for="item in filteredLocalFiles" 
             :key="item.name"
@@ -916,7 +972,11 @@ watch(() => session.value?.status, (status) => {
           <button @click="remoteError = ''" class="hover:text-red-200"><X size="12" /></button>
         </div>
 
-        <div ref="remoteListRef" class="flex-1 overflow-y-auto divide-y divide-cyber-text/10 relative">
+        <div 
+          ref="remoteListRef"
+          class="flex-1 overflow-y-auto divide-y divide-cyber-text/10 relative"
+          @contextmenu.prevent="openPaneContextMenu($event, 'remote')"
+        >
           <div 
             v-if="filteredRemoteFiles.length === 0" 
             class="px-4 py-6 text-center text-cyber-text/50 text-xs"
@@ -1009,9 +1069,9 @@ watch(() => session.value?.status, (status) => {
          class="fixed z-50 bg-cyber-black border border-neon-blue/40 rounded shadow-lg py-1 min-w-[150px] backdrop-blur-md text-sm"
          :style="{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }">
       <div class="px-3 py-2 border-b border-cyber-text/10 text-cyber-text/50 text-xs font-bold uppercase tracking-wider">
-        {{ contextMenu.item?.name }}
+        {{ contextMenuTitle }}
       </div>
-      <button @click.stop="handleContextTransfer" class="w-full text-left px-4 py-2 hover:bg-neon-blue/20 hover:text-neon-blue flex items-center space-x-2">
+      <button v-if="contextMenu.item" @click.stop="handleContextTransfer" class="w-full text-left px-4 py-2 hover:bg-neon-blue/20 hover:text-neon-blue flex items-center space-x-2">
         <component :is="contextMenu.scope === 'local' ? Upload : Download" size="14" />
         <span>{{ contextMenu.scope === 'local' ? 'Upload' : 'Download' }}</span>
       </button>
@@ -1019,15 +1079,22 @@ watch(() => session.value?.status, (status) => {
         <FolderPlus size="14" />
         <span>New Folder</span>
       </button>
-      <button @click.stop="handleRename" class="w-full text-left px-4 py-2 hover:bg-neon-blue/20 hover:text-neon-blue flex items-center space-x-2">
+      <button v-if="contextMenu.item" @click.stop="handleRename" class="w-full text-left px-4 py-2 hover:bg-neon-blue/20 hover:text-neon-blue flex items-center space-x-2">
         <Edit size="14" />
         <span>Rename</span>
       </button>
-      <button @click.stop="handleInfo" class="w-full text-left px-4 py-2 hover:bg-neon-blue/20 hover:text-neon-blue flex items-center space-x-2">
+      <button 
+        v-if="!contextMenu.item || contextMenu.item.type === 'dir'"
+        @click.stop="handleOpenTerminalHere" 
+        class="w-full text-left px-4 py-2 hover:bg-neon-blue/20 hover:text-neon-blue flex items-center space-x-2">
+        <TerminalSquare size="14" />
+        <span>{{ contextMenu.item ? '进入终端' : '当前目录进入终端' }}</span>
+      </button>
+      <button v-if="contextMenu.item" @click.stop="handleInfo" class="w-full text-left px-4 py-2 hover:bg-neon-blue/20 hover:text-neon-blue flex items-center space-x-2">
         <Info size="14" />
         <span>Properties</span>
       </button>
-      <button @click.stop="handleDelete" class="w-full text-left px-4 py-2 hover:bg-red-900/30 hover:text-red-400 flex items-center space-x-2 text-red-400/80">
+      <button v-if="contextMenu.item" @click.stop="handleDelete" class="w-full text-left px-4 py-2 hover:bg-red-900/30 hover:text-red-400 flex items-center space-x-2 text-red-400/80">
         <Trash2 size="14" />
         <span>Delete</span>
       </button>

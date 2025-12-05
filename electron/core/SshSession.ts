@@ -90,6 +90,13 @@ export class SshSession extends BaseSession {
             this.conn.end();
             this.emit('exit');
           });
+
+          if (typeof config.initialCommand === 'string' && config.initialCommand.trim().length) {
+            const payload = config.initialCommand.endsWith('\n') || config.initialCommand.endsWith('\r')
+              ? config.initialCommand
+              : `${config.initialCommand}\n`;
+            stream.write(payload);
+          }
         });
       });
 

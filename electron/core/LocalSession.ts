@@ -1,5 +1,6 @@
 import * as pty from '@karinjs/node-pty'
 import os from 'os'
+import * as fs from 'fs'
 import { BaseSession, SessionOptions } from './BaseSession'
 
 export class LocalSession extends BaseSession {
@@ -9,15 +10,21 @@ export class LocalSession extends BaseSession {
     super(options);
   }
 
-  async init(): Promise<void> {
+  async init(config: any = {}): Promise<void> {
     const shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
+    const requestedCwd = typeof config?.cwd === 'string' && config.cwd.trim().length > 0
+      ? config.cwd.trim()
+      : ''
+    const cwd = requestedCwd && fs.existsSync(requestedCwd)
+      ? requestedCwd
+      : os.homedir()
     
     try {
       this.ptyProcess = pty.spawn(shell, [], {
         name: 'xterm-color',
         cols: 80,
         rows: 30,
-        cwd: os.homedir(),
+        cwd,
         env: process.env
       });
 

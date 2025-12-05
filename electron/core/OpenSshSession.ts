@@ -74,6 +74,14 @@ export class OpenSshSession extends BaseSession {
         // Native 模式下，只要进程启动了，我们就认为“连接成功”
         // 具体的认证失败信息会直接打印在终端屏幕上，这正是我们想要的“原生反馈”
         this.emit('status', { status: 'connected', log: 'Native SSH process started.' });
+
+        if (typeof config.initialCommand === 'string' && config.initialCommand.trim().length) {
+          const payload = config.initialCommand.endsWith('\n') || config.initialCommand.endsWith('\r')
+            ? config.initialCommand
+            : `${config.initialCommand}\n`;
+          setTimeout(() => this.ptyProcess?.write(payload), 300);
+        }
+
         resolve();
 
       } catch (error: any) {

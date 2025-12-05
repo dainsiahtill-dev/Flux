@@ -46,7 +46,7 @@ export default defineConfig({
     /*开发服务器选项*/
     server: {
         // 端口
-        port: 3000,
+      port: 8437,
         host: '0.0.0.0'
     }
 })
