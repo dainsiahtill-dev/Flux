@@ -4,9 +4,12 @@ import { useSessionStore } from '../stores/sessionStore'
 import { useUiStore } from '../stores/uiStore'
 import { Key, Trash2, Plus, FolderOpen } from 'lucide-vue-next'
 import KeyDetailSidebar from '../components/KeyDetailSidebar.vue' // ✅ 引入
+import { useLocale } from '../composables/useLocale'
 
 const sessionStore = useSessionStore()
 const uiStore = useUiStore()
+const { t } = useLocale()
+const keychainText = computed(() => t.value.keychainManager)
 const searchQuery = ref('')
 const isAdding = ref(false)
 
@@ -34,7 +37,7 @@ const browseFile = async () => {
       form.value.path = path
       if (!form.value.alias) {
         const fileName = path.split(/[\\/]/).pop()
-        form.value.alias = fileName || 'Imported Key'
+        form.value.alias = fileName || keychainText.value.placeholders.autoAlias
       }
     }
   }
@@ -47,7 +50,7 @@ const saveNewKey = async () => {
 }
 
 const deleteKey = async (id: string) => {
-  if(confirm('Remove this key reference?')) {
+  if(confirm(keychainText.value.confirmDelete)) {
     await sessionStore.deleteKey(id)
     if (uiStore.selectedKeyId === id) {
       uiStore.closeKeyDetail()
@@ -68,7 +71,7 @@ const openDetail = (key: any) => {
       
       <div class="px-6 pt-6 pb-2 shrink-0 flex justify-between items-center">
         <h1 class="text-xl font-bold text-neon-blue tracking-[0.2em] uppercase drop-shadow-[0_0_5px_rgba(0,243,255,0.8)]">
-          Security Keychain
+          {{ t.keychainManager.title }}
         </h1>
         <button 
           v-if="!isAdding"
@@ -76,7 +79,7 @@ const openDetail = (key: any) => {
           class="flex items-center space-x-2 px-3 py-1.5 bg-neon-blue/10 text-neon-blue border border-neon-blue/50 rounded hover:bg-neon-blue hover:text-black transition-all text-xs font-bold"
         >
           <Plus size="14" />
-          <span>ADD KEY</span>
+          <span>{{ t.keychainManager.addButton }}</span>
         </button>
       </div>
 
@@ -84,22 +87,22 @@ const openDetail = (key: any) => {
         
         <!-- 添加表单 -->
         <div v-if="isAdding" class="p-4 rounded border border-neon-blue/30 bg-cyber-light/10 animate-in fade-in slide-in-from-top-4">
-          <div class="text-xs font-bold text-neon-blue mb-4 uppercase">New Key Identity</div>
+          <div class="text-xs font-bold text-neon-blue mb-4 uppercase">{{ t.keychainManager.formTitle }}</div>
           <div class="space-y-4">
             <div>
-               <label class="block text-[10px] text-cyber-text/50 uppercase mb-1">Key Alias</label>
-               <input v-model="form.alias" type="text" class="cyber-input" placeholder="e.g. AWS Root" />
+               <label class="block text-[10px] text-cyber-text/50 uppercase mb-1">{{ t.keychainManager.labels.alias }}</label>
+               <input v-model="form.alias" type="text" class="cyber-input" :placeholder="t.keychainManager.placeholders.alias" />
             </div>
             <div>
-               <label class="block text-[10px] text-cyber-text/50 uppercase mb-1">Local Path</label>
+               <label class="block text-[10px] text-cyber-text/50 uppercase mb-1">{{ t.keychainManager.labels.path }}</label>
                <div class="flex space-x-2">
-                 <input v-model="form.path" type="text" class="cyber-input font-mono text-xs text-cyber-text/70" placeholder="C:/Users/.ssh/id_rsa" />
+                 <input v-model="form.path" type="text" class="cyber-input font-mono text-xs text-cyber-text/70" :placeholder="t.keychainManager.placeholders.path" />
                  <button @click="browseFile" class="text-neon-blue hover:text-white transition"><FolderOpen size="18"/></button>
                </div>
             </div>
             <div class="flex space-x-3 pt-2">
-               <button @click="saveNewKey" class="flex-1 py-2 bg-neon-blue text-black font-bold text-xs rounded hover:shadow-[0_0_10px_#00f3ff] transition">SAVE</button>
-               <button @click="cancelAdd" class="px-4 py-2 border border-cyber-text/20 text-cyber-text text-xs rounded hover:bg-white/5">CANCEL</button>
+               <button @click="saveNewKey" class="flex-1 py-2 bg-neon-blue text-black font-bold text-xs rounded hover:shadow-[0_0_10px_#00f3ff] transition">{{ t.keychainManager.buttons.save }}</button>
+               <button @click="cancelAdd" class="px-4 py-2 border border-cyber-text/20 text-cyber-text text-xs rounded hover:bg-white/5">{{ t.keychainManager.buttons.cancel }}</button>
             </div>
           </div>
         </div>
@@ -126,14 +129,14 @@ const openDetail = (key: any) => {
              <button 
                @click.stop="deleteKey(key.id)"
                class="opacity-0 group-hover:opacity-100 p-2 text-cyber-text/40 hover:text-red-500 transition-all"
-               title="Remove from keychain"
+               :title="t.keychainManager.tooltips.remove"
              >
                <Trash2 size="16" />
              </button>
            </div>
 
            <div v-if="filteredKeys.length === 0 && !isAdding" class="text-center py-10 text-cyber-text/30 text-xs font-mono">
-              NO KEYS FOUND IN SECURE STORAGE
+              {{ t.keychainManager.emptyState }}
            </div>
         </div>
 

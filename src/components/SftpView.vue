@@ -5,6 +5,7 @@ import {
   HardDrive, Server, RefreshCcw, FolderPlus, Upload, Download, 
   Folder, File, ArrowLeftRight, Search, ArrowUp, X, Trash2, Edit, Info, TerminalSquare
 } from 'lucide-vue-next'
+import { useLocale } from '../composables/useLocale'
 
 type FileItem = {
   name: string
@@ -25,9 +26,21 @@ type TransferItem = {
   progress?: number
 }
 
+type ConfirmDialogOptions = {
+  title: string
+  message: string
+  confirmLabel?: string
+  cancelLabel?: string
+}
+
 const props = defineProps<{ sessionId: string }>()
 const sessionStore = useSessionStore()
 const session = computed(() => sessionStore.sessions.find(s => s.id === props.sessionId))
+const { t } = useLocale()
+const sftpCopy = computed(() => t.value.sftp)
+const localRootLabel = computed(() => sftpCopy.value.panes.localRoot)
+const formatMessage = (template: string, variables: Record<string, string>) =>
+  template.replace(/\{(\w+)\}/g, (_, key) => variables[key] ?? '')
 
 const localPath = ref('')
 const remotePath = ref('/')
@@ -52,9 +65,11 @@ const splitPath = (value: string, scope: 'local' | 'remote') => {
   return normalized.split('/').filter(Boolean)
 }
 
+const getLocalRoot = () => localRootLabel.value
+
 const buildPath = (parts: string[], scope: 'local' | 'remote') => {
   if (scope === 'local') {
-    if (parts.length === 0 || (parts.length === 1 && parts[0] === 'This PC')) return 'This PC'
+    if (parts.length === 0 || (parts.length === 1 && parts[0] === getLocalRoot())) return getLocalRoot()
     const drive = parts[0].endsWith(':') ? parts[0] : `${parts[0]}:`
     const rest = parts.slice(1)
     return rest.length ? `${drive}/${rest.join('/')}` : `${drive}/`
@@ -84,7 +99,7 @@ const parentLocalPath = (value: string) => {
   const normalized = value.replace(/\\/g, '/')
   // If we are at a drive root like "C:/" or "D:/", go to "This PC"
   if (/^[A-Za-z]:\/?$/.test(normalized)) {
-    return 'This PC'
+    return getLocalRoot()
   }
   
   const parts = normalized.split('/').filter(Boolean)
@@ -103,7 +118,7 @@ const parentRemotePath = (value: string) => {
 }
 
 const joinLocalPath = (base: string, name: string) => {
-  if (base === 'This PC') {
+  if (base === getLocalRoot()) {
     return name.endsWith('/') ? name : `${name}/`
   }
   const normalized = base.replace(/\\/g, '/').replace(/\/+$/, '')
@@ -129,7 +144,7 @@ const formatTime = (value: number | string) => {
 
 const loadLocalDir = async (targetPath?: string) => {
   if (!window.electronAPI?.readDir) {
-    localError.value = 'readDir API 不可用（请在 preload 暴露）'
+    localError.value = sftpCopy.value.errors.readDirUnavailable
     return
   }
   loadingLocal.value = true
@@ -153,7 +168,7 @@ const loadLocalDir = async (targetPath?: string) => {
       localError.value = result.error
     }
   } catch (err: any) {
-    localError.value = err?.message || '读取目录失败'
+    localError.value = err?.message || sftpCopy.value.errors.readDirUnavailable
   } finally {
     loadingLocal.value = false
   }
@@ -161,11 +176,11 @@ const loadLocalDir = async (targetPath?: string) => {
 
 const loadRemoteDir = async (targetPath?: string) => {
   if (session.value?.status !== 'connected') {
-    remoteError.value = 'SFTP 未连接，请稍候...'
+    remoteError.value = sftpCopy.value.errors.sftpNotConnected
     return
   }
   if (!window.electronAPI?.sftpReadDir) {
-    remoteError.value = 'sftpReadDir API 不可用'
+    remoteError.value = sftpCopy.value.errors.sftpApiMissing
     return
   }
   loadingRemote.value = true
@@ -187,7 +202,7 @@ const loadRemoteDir = async (targetPath?: string) => {
     }))
     if (result?.error) remoteError.value = result.error
   } catch (err: any) {
-    remoteError.value = err?.message || '读取远程目录失败'
+    remoteError.value = err?.message || sftpCopy.value.errors.sftpApiMissing
   } finally {
     loadingRemote.value = false
   }
@@ -241,7 +256,7 @@ const queueTransfer = (direction: 'upload' | 'download', name: string, size: str
 
 const uploadLocalFiles = async (files: { path: string; name: string; size: number | string }[]) => {
   if (session.value?.status !== 'connected') {
-    remoteError.value = 'SFTP 未连接，无法上传'
+    remoteError.value = sftpCopy.value.errors.sftpNotConnected
     return
   }
   for (const file of files) {
@@ -251,6 +266,19 @@ const uploadLocalFiles = async (files: { path: string; name: string; size: numbe
       if (stat && stat.isDirectory) {
         // TODO: Implement directory upload or show notification
         console.warn(`Skipping directory upload: ${file.name}`)
+        continue
+      }
+    }
+
+    const remoteConflict = remoteFiles.value.some(remote => remote.name === file.name && remote.type === 'file')
+    if (remoteConflict) {
+      const confirmed = await showConfirmDialog({
+        title: sftpCopy.value.dialogs.overwriteTitle,
+        message: formatMessage(sftpCopy.value.dialogs.overwriteMessage, { name: file.name }),
+        confirmLabel: sftpCopy.value.dialogs.overwriteConfirm,
+        cancelLabel: sftpCopy.value.dialogs.overwriteSkip
+      })
+      if (!confirmed) {
         continue
       }
     }
@@ -336,7 +364,7 @@ const handleLocalDrop = async (evt: DragEvent) => {
     try {
       const file = JSON.parse(internalData)
       if (file.type === 'dir') {
-        localError.value = `Directory download not supported: ${file.name}`
+        localError.value = formatMessage(sftpCopy.value.errors.directoryDownloadUnsupported, { name: file.name })
         return
       }
       await handleDownload({
@@ -381,7 +409,7 @@ const handleRemoteDrop = async (evt: DragEvent) => {
     try {
       const file = JSON.parse(internalData)
       if (file.type === 'dir') {
-        remoteError.value = `Directory upload not supported: ${file.name}`
+        remoteError.value = formatMessage(sftpCopy.value.errors.directoryUploadUnsupported, { name: file.name })
         return
       }
       await uploadLocalFiles([file])
@@ -465,12 +493,14 @@ const statusTone = (status: TransferItem['status']) => {
   return 'text-cyber-text/70'
 }
 
+const transferStatusLabel = (status: TransferItem['status']) => sftpCopy.value.transfer.statuses[status] || status.toUpperCase()
+
 const cancelTransfer = async (item: TransferItem) => {
   if (item.status !== 'active') return
   
   // Optimistically update UI
   item.status = 'error'
-  item.error = 'Cancelled by user'
+  item.error = sftpCopy.value.errors.cancelTransfer
   
   if (window.electronAPI?.cancelTransfer) {
     await window.electronAPI.cancelTransfer({ id: session.value?.id || '', transferId: item.id })
@@ -482,7 +512,7 @@ const removeTransfer = (id: string) => {
 }
 
 const connectionLabel = computed(() => {
-  if (!session.value) return 'SFTP Session'
+  if (!session.value) return sftpCopy.value.header.connectionFallback
   return `${session.value.user || 'root'}@${session.value.host}`
 })
 
@@ -497,8 +527,8 @@ const contextMenu = ref({
 const contextMenuTitle = computed(() => {
   if (contextMenu.value.item) return contextMenu.value.item.name
   return contextMenu.value.scope === 'local'
-    ? (localPath.value || 'Local Directory')
-    : (remotePath.value || '/')
+    ? (localPath.value || sftpCopy.value.panes.localContext)
+    : (remotePath.value || sftpCopy.value.panes.remoteContext)
 })
 
 const openContextMenu = (evt: MouseEvent, item: FileItem | null, scope: 'local' | 'remote') => {
@@ -551,6 +581,28 @@ const showInputDialog = (title: string, defaultValue: string = ''): Promise<stri
   })
 }
 
+const confirmDialog = ref({
+  visible: false,
+  title: '',
+  message: '',
+  confirmLabel: '',
+  cancelLabel: '',
+  resolve: null as ((value: boolean) => void) | null
+})
+
+const showConfirmDialog = (options: ConfirmDialogOptions): Promise<boolean> => {
+  return new Promise((resolve) => {
+    confirmDialog.value = {
+      visible: true,
+      title: options.title,
+      message: options.message,
+      confirmLabel: options.confirmLabel || sftpCopy.value.dialogs.confirm,
+      cancelLabel: options.cancelLabel || sftpCopy.value.dialogs.cancel,
+      resolve
+    }
+  })
+}
+
 const handleInputConfirm = () => {
   if (inputDialog.value.resolve) {
     inputDialog.value.resolve(inputDialog.value.value)
@@ -563,6 +615,13 @@ const handleInputCancel = () => {
     inputDialog.value.resolve(null)
   }
   inputDialog.value.visible = false
+}
+
+const handleConfirmChoice = (accepted: boolean) => {
+  if (confirmDialog.value.resolve) {
+    confirmDialog.value.resolve(accepted)
+  }
+  confirmDialog.value.visible = false
 }
 
 const formatMode = (mode?: number) => {
@@ -630,7 +689,7 @@ const scrollToSelection = async (scope: 'local' | 'remote') => {
 }
 
 const createFolder = async (scope: 'local' | 'remote') => {
-  const name = await showInputDialog('New Folder Name:', 'New Folder')
+  const name = await showInputDialog(sftpCopy.value.dialogs.newFolderTitle, sftpCopy.value.contextMenu.newFolder)
   if (!name) return
 
   if (scope === 'local') {
@@ -667,7 +726,7 @@ const handleRename = async () => {
   if (!item) return
   closeContextMenu()
 
-  const newName = await showInputDialog('Rename to:', item.name)
+  const newName = await showInputDialog(sftpCopy.value.dialogs.renameTitle, item.name)
   if (!newName || newName === item.name) return
 
   if (scope === 'local') {
@@ -696,7 +755,8 @@ const handleDelete = async () => {
   if (!item) return
   closeContextMenu()
 
-  if (!confirm(`Are you sure you want to delete "${item.name}"? This cannot be undone.`)) return
+  const confirmText = formatMessage(sftpCopy.value.contextMenu.confirmDelete, { name: item.name })
+  if (!confirm(confirmText)) return
 
   if (scope === 'local') {
     const path = joinLocalPath(localPath.value, item.name)
@@ -725,8 +785,8 @@ const handleOpenTerminalHere = () => {
 
   if (scope === 'local') {
     const basePath = localPath.value
-    if (!basePath || basePath === 'This PC') {
-      localError.value = '请选择具体的本地目录再进入终端'
+    if (!basePath || basePath === getLocalRoot()) {
+      localError.value = sftpCopy.value.errors.localTerminalSelectDir
       return
     }
     const target = item ? joinLocalPath(basePath, item.name) : basePath
@@ -739,13 +799,13 @@ const handleOpenTerminalHere = () => {
   }
 
   if (!session.value?.savedHostId) {
-    remoteError.value = '无法定位关联主机，暂时无法打开终端'
+    remoteError.value = sftpCopy.value.errors.remoteTerminalMissingHost
     return
   }
 
   const hostConfig = sessionStore.savedHosts.find(h => h.id === session.value?.savedHostId)
   if (!hostConfig) {
-    remoteError.value = '无法定位关联主机，暂时无法打开终端'
+    remoteError.value = sftpCopy.value.errors.remoteTerminalMissingHost
     return
   }
 
@@ -793,14 +853,14 @@ watch(() => session.value?.status, (status) => {
       <div class="flex items-center space-x-3">
         <ArrowLeftRight class="text-neon-blue" size="18" />
         <div class="flex flex-col">
-          <span class="text-[10px] uppercase text-cyber-text/60 tracking-widest">File Bridge</span>
+          <span class="text-[10px] uppercase text-cyber-text/60 tracking-widest">{{ sftpCopy.header.title }}</span>
           <span class="text-sm font-bold tracking-wide">{{ connectionLabel }}</span>
-          <span class="text-[10px] text-cyber-text/50">Double-click folder to enter; double-click file to transfer</span>
+          <span class="text-[10px] text-cyber-text/50">{{ sftpCopy.header.instruction }}</span>
         </div>
       </div>
       <div class="flex items-center space-x-2 text-[10px] font-bold uppercase">
-        <span class="px-3 py-1 rounded-full border border-neon-blue/40 text-neon-blue bg-neon-blue/10">SFTP Ready</span>
-        <span class="px-3 py-1 rounded-full border border-cyber-text/30 text-cyber-text/80 bg-cyber-black/40">{{ session?.name || 'Active session' }}</span>
+        <span class="px-3 py-1 rounded-full border border-neon-blue/40 text-neon-blue bg-neon-blue/10">{{ sftpCopy.badges.ready }}</span>
+        <span class="px-3 py-1 rounded-full border border-cyber-text/30 text-cyber-text/80 bg-cyber-black/40">{{ session?.name || sftpCopy.badges.fallback }}</span>
       </div>
     </div>
 
@@ -814,7 +874,7 @@ watch(() => session.value?.status, (status) => {
           <div class="scanline" style="background: #00f3ff; box-shadow: 0 0 10px #00f3ff;"></div>
           <div class="flex flex-col items-center space-y-2">
             <Download :size="32" class="animate-bounce" />
-            <span>Release to download</span>
+            <span>{{ sftpCopy.drag.releaseDownload }}</span>
           </div>
         </div>
         <div class="px-4 py-3 flex items-center justify-between border-b border-neon-blue/10 bg-cyber-light/40">
@@ -823,7 +883,7 @@ watch(() => session.value?.status, (status) => {
               <HardDrive :size="16" class="text-neon-blue" />
             </div>
             <div class="flex flex-col">
-              <span class="text-xs font-bold tracking-wider text-neon-blue">Local Files</span>
+              <span class="text-xs font-bold tracking-wider text-neon-blue">{{ sftpCopy.panes.localTitle }}</span>
               <div class="flex flex-wrap items-center text-[11px] text-cyber-text/60 space-x-1">
                 <button 
                   v-for="(crumb, idx) in localBreadcrumbs" 
@@ -837,13 +897,13 @@ watch(() => session.value?.status, (status) => {
             </div>
           </div>
           <div class="flex items-center space-x-2">
-            <button @click.stop="navigateUp('local')" class="icon-button" title="Go up">
+            <button @click.stop="navigateUp('local')" class="icon-button" :title="sftpCopy.tooltips.goUp">
               <ArrowUp size="14" />
             </button>
-            <button @click.stop="refreshPane('local')" class="icon-button" title="Refresh">
+            <button @click.stop="refreshPane('local')" class="icon-button" :title="sftpCopy.tooltips.refresh">
               <RefreshCcw size="14" />
             </button>
-            <button @click.stop="createFolder('local')" class="icon-button" title="New Folder">
+            <button @click.stop="createFolder('local')" class="icon-button" :title="sftpCopy.tooltips.newFolder">
               <FolderPlus size="14" />
             </button>
           </div>
@@ -855,11 +915,11 @@ watch(() => session.value?.status, (status) => {
             <input 
               v-model="searchLocal"
               type="text" 
-              placeholder="Filter local files..." 
+              :placeholder="sftpCopy.placeholders.filterLocal"
               class="w-full pl-7 pr-3 py-1.5 bg-cyber-black/60 border border-cyber-text/20 rounded text-xs text-cyber-text focus:outline-none focus:border-neon-blue focus:shadow-neon-blue-inset select-text"
             />
           </div>
-          <span class="text-[10px] text-cyber-text/60">Selected: {{ selectedLocal || '-' }}</span>
+          <span class="text-[10px] text-cyber-text/60">{{ sftpCopy.selectedLabel }}: {{ selectedLocal || '-' }}</span>
         </div>
 
         <div v-if="localError" class="px-4 py-1 text-[10px] text-red-400 bg-red-900/20 border-b border-red-700/40 flex justify-between items-center">
@@ -908,7 +968,7 @@ watch(() => session.value?.status, (status) => {
           <div class="scanline"></div>
           <div class="flex flex-col items-center space-y-2">
             <Upload :size="32" class="animate-bounce" />
-            <span>Release to upload</span>
+            <span>{{ sftpCopy.drag.releaseUpload }}</span>
           </div>
         </div>
         <div class="px-4 py-3 flex items-center justify-between border-b border-neon-blue/10 bg-cyber-light/40">
@@ -917,7 +977,7 @@ watch(() => session.value?.status, (status) => {
               <Server size="16" class="text-neon-pink" />
             </div>
             <div class="flex flex-col">
-              <span class="text-xs font-bold tracking-wider text-neon-pink">Remote Files</span>
+              <span class="text-xs font-bold tracking-wider text-neon-pink">{{ sftpCopy.panes.remoteTitle }}</span>
               <div class="flex flex-wrap items-center text-[11px] text-cyber-text/60 space-x-1">
                 <button 
                   class="hover:text-neon-pink transition-colors"
@@ -936,19 +996,19 @@ watch(() => session.value?.status, (status) => {
             </div>
           </div>
           <div class="flex items-center space-x-2">
-            <button @click.stop="navigateUp('remote')" class="icon-button" title="Go up">
+            <button @click.stop="navigateUp('remote')" class="icon-button" :title="sftpCopy.tooltips.goUp">
               <ArrowUp size="14" />
             </button>
-            <button @click.stop="refreshPane('remote')" class="icon-button" title="Refresh">
+            <button @click.stop="refreshPane('remote')" class="icon-button" :title="sftpCopy.tooltips.refresh">
               <RefreshCcw size="14" />
             </button>
-            <button @click.stop="createFolder('remote')" class="icon-button" title="New Folder">
+            <button @click.stop="createFolder('remote')" class="icon-button" :title="sftpCopy.tooltips.newFolder">
               <FolderPlus size="14" />
             </button>
-            <button class="icon-button" title="Download from remote">
+            <button class="icon-button" :title="sftpCopy.tooltips.download">
               <Download size="14" />
             </button>
-            <button class="icon-button" title="Upload to remote">
+            <button class="icon-button" :title="sftpCopy.tooltips.upload">
               <Upload size="14" />
             </button>
           </div>
@@ -960,11 +1020,11 @@ watch(() => session.value?.status, (status) => {
             <input 
               v-model="searchRemote"
               type="text" 
-              placeholder="Filter remote files..." 
+              :placeholder="sftpCopy.placeholders.filterRemote" 
               class="w-full pl-7 pr-3 py-1.5 bg-cyber-black/60 border border-cyber-text/20 rounded text-xs text-cyber-text focus:outline-none focus:border-neon-pink focus:shadow-neon-pink-inset select-text"
             />
           </div>
-          <span class="text-[10px] text-cyber-text/60">Selected: {{ selectedRemote || '-' }}</span>
+          <span class="text-[10px] text-cyber-text/60">{{ sftpCopy.selectedLabel }}: {{ selectedRemote || '-' }}</span>
         </div>
 
         <div v-if="remoteError" class="px-4 py-1 text-[10px] text-red-400 bg-red-900/20 border-b border-red-700/40 flex justify-between items-center">
@@ -981,7 +1041,7 @@ watch(() => session.value?.status, (status) => {
             v-if="filteredRemoteFiles.length === 0" 
             class="px-4 py-6 text-center text-cyber-text/50 text-xs"
           >
-            Remote listing not wired yet. Use SFTP backend hook to populate.
+            {{ sftpCopy.emptyStates.remoteList }}
           </div>
           <div 
             v-for="item in filteredRemoteFiles" 
@@ -1015,9 +1075,9 @@ watch(() => session.value?.status, (status) => {
       <div class="flex items-center justify-between mb-2">
         <div class="flex items-center space-x-2">
           <ArrowLeftRight size="14" class="text-neon-blue" />
-          <span class="text-xs font-bold tracking-wider text-cyber-text-bright">Transfer Queue</span>
+          <span class="text-xs font-bold tracking-wider text-cyber-text-bright">{{ sftpCopy.transfer.title }}</span>
         </div>
-        <span class="text-[10px] text-cyber-text/60">Drag local files into Remote pane to upload</span>
+        <span class="text-[10px] text-cyber-text/60">{{ sftpCopy.notices.transferHint }}</span>
       </div>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
         <div 
@@ -1030,13 +1090,13 @@ watch(() => session.value?.status, (status) => {
               <span class="text-sm font-medium">{{ item.name }}</span>
               <div class="flex items-center space-x-2">
                 <span :class="['text-[10px] font-bold uppercase', statusTone(item.status)]">
-                  {{ item.status }}
+                  {{ transferStatusLabel(item.status) }}
                 </span>
                 <button 
                   v-if="item.status === 'active'"
                   @click="cancelTransfer(item)"
                   class="text-cyber-text/60 hover:text-neon-pink transition-colors"
-                  title="Cancel Transfer"
+                  :title="sftpCopy.transfer.cancelTooltip"
                 >
                   <X size="14" />
                 </button>
@@ -1044,14 +1104,14 @@ watch(() => session.value?.status, (status) => {
                   v-else
                   @click="removeTransfer(item.id)"
                   class="text-cyber-text/60 hover:text-red-400 transition-colors"
-                  title="Remove from list"
+                  :title="sftpCopy.transfer.removeTooltip"
                 >
                   <Trash2 size="14" />
                 </button>
               </div>
             </div>
             <div class="flex justify-between items-center mt-1">
-              <span class="text-[10px] text-cyber-text/60">{{ item.direction === 'upload' ? 'Upload' : 'Download' }} • {{ item.size }}</span>
+              <span class="text-[10px] text-cyber-text/60">{{ item.direction === 'upload' ? sftpCopy.transfer.uploadLabel : sftpCopy.transfer.downloadLabel }} • {{ item.size }}</span>
               <span v-if="item.error" class="text-[10px] text-neon-pink truncate max-w-[150px]">{{ item.error }}</span>
             </div>
             <div v-if="item.status === 'active'" class="w-full h-1 bg-cyber-black/60 rounded-full mt-2 overflow-hidden">
@@ -1073,30 +1133,30 @@ watch(() => session.value?.status, (status) => {
       </div>
       <button v-if="contextMenu.item" @click.stop="handleContextTransfer" class="w-full text-left px-4 py-2 hover:bg-neon-blue/20 hover:text-neon-blue flex items-center space-x-2">
         <component :is="contextMenu.scope === 'local' ? Upload : Download" size="14" />
-        <span>{{ contextMenu.scope === 'local' ? 'Upload' : 'Download' }}</span>
+        <span>{{ contextMenu.scope === 'local' ? sftpCopy.contextMenu.upload : sftpCopy.contextMenu.download }}</span>
       </button>
       <button @click.stop="handleCreateFolder" class="w-full text-left px-4 py-2 hover:bg-neon-blue/20 hover:text-neon-blue flex items-center space-x-2">
         <FolderPlus size="14" />
-        <span>New Folder</span>
+        <span>{{ sftpCopy.contextMenu.newFolder }}</span>
       </button>
       <button v-if="contextMenu.item" @click.stop="handleRename" class="w-full text-left px-4 py-2 hover:bg-neon-blue/20 hover:text-neon-blue flex items-center space-x-2">
         <Edit size="14" />
-        <span>Rename</span>
+        <span>{{ sftpCopy.contextMenu.rename }}</span>
       </button>
       <button 
         v-if="!contextMenu.item || contextMenu.item.type === 'dir'"
         @click.stop="handleOpenTerminalHere" 
         class="w-full text-left px-4 py-2 hover:bg-neon-blue/20 hover:text-neon-blue flex items-center space-x-2">
         <TerminalSquare size="14" />
-        <span>{{ contextMenu.item ? '进入终端' : '当前目录进入终端' }}</span>
+        <span>{{ contextMenu.item ? sftpCopy.contextMenu.openTerminal : sftpCopy.contextMenu.openTerminalHere }}</span>
       </button>
       <button v-if="contextMenu.item" @click.stop="handleInfo" class="w-full text-left px-4 py-2 hover:bg-neon-blue/20 hover:text-neon-blue flex items-center space-x-2">
         <Info size="14" />
-        <span>Properties</span>
+        <span>{{ sftpCopy.contextMenu.properties }}</span>
       </button>
       <button v-if="contextMenu.item" @click.stop="handleDelete" class="w-full text-left px-4 py-2 hover:bg-red-900/30 hover:text-red-400 flex items-center space-x-2 text-red-400/80">
         <Trash2 size="14" />
-        <span>Delete</span>
+        <span>{{ sftpCopy.contextMenu.delete }}</span>
       </button>
     </div>
 
@@ -1113,8 +1173,24 @@ watch(() => session.value?.status, (status) => {
           autofocus
         />
         <div class="flex justify-end space-x-2">
-          <button @click="handleInputCancel" class="px-3 py-1 text-xs text-cyber-text/60 hover:text-cyber-text transition-colors">Cancel</button>
-          <button @click="handleInputConfirm" class="px-3 py-1 text-xs bg-neon-blue/10 text-neon-blue border border-neon-blue/40 rounded hover:bg-neon-blue/20 transition-colors">Confirm</button>
+          <button @click="handleInputCancel" class="px-3 py-1 text-xs text-cyber-text/60 hover:text-cyber-text transition-colors">{{ sftpCopy.dialogs.cancel }}</button>
+          <button @click="handleInputConfirm" class="px-3 py-1 text-xs bg-neon-blue/10 text-neon-blue border border-neon-blue/40 rounded hover:bg-neon-blue/20 transition-colors">{{ sftpCopy.dialogs.confirm }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Confirm Dialog -->
+    <div v-if="confirmDialog.visible" class="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div class="bg-cyber-black border border-neon-blue/40 rounded-lg shadow-lg p-5 w-[340px] space-y-4">
+        <h3 class="text-sm font-bold text-neon-blue">{{ confirmDialog.title }}</h3>
+        <p class="text-xs text-cyber-text/80 leading-relaxed">{{ confirmDialog.message }}</p>
+        <div class="flex justify-end space-x-2">
+          <button @click="handleConfirmChoice(false)" class="px-3 py-1 text-xs text-cyber-text/60 hover:text-cyber-text transition-colors">
+            {{ confirmDialog.cancelLabel }}
+          </button>
+          <button @click="handleConfirmChoice(true)" class="px-3 py-1 text-xs bg-neon-blue/10 text-neon-blue border border-neon-blue/40 rounded hover:bg-neon-blue/20 transition-colors">
+            {{ confirmDialog.confirmLabel }}
+          </button>
         </div>
       </div>
     </div>
@@ -1125,7 +1201,7 @@ watch(() => session.value?.status, (status) => {
         <div class="flex justify-between items-center border-b border-cyber-text/10 pb-2">
           <h3 class="text-sm font-bold text-neon-blue flex items-center space-x-2">
             <Info size="14" />
-            <span>File Properties</span>
+            <span>{{ sftpCopy.dialogs.infoTitle }}</span>
           </h3>
           <button @click="infoDialog.visible = false" class="text-cyber-text/60 hover:text-cyber-text">
             <X size="14" />
@@ -1133,37 +1209,37 @@ watch(() => session.value?.status, (status) => {
         </div>
         <div class="space-y-3 text-xs">
           <div class="flex flex-col space-y-1">
-            <span class="text-cyber-text/50 uppercase text-[10px] tracking-wider">Name</span>
+            <span class="text-cyber-text/50 uppercase text-[10px] tracking-wider">{{ sftpCopy.dialogs.infoName }}</span>
             <span class="text-cyber-text select-text">{{ infoDialog.name }}</span>
           </div>
           <div class="flex flex-col space-y-1">
-            <span class="text-cyber-text/50 uppercase text-[10px] tracking-wider">Location</span>
+            <span class="text-cyber-text/50 uppercase text-[10px] tracking-wider">{{ sftpCopy.dialogs.infoLocation }}</span>
             <div class="p-2 bg-cyber-black/40 rounded border border-cyber-text/10 break-all font-mono select-text">
               {{ infoDialog.path }}
             </div>
           </div>
           <div class="grid grid-cols-2 gap-4">
             <div class="flex flex-col space-y-1">
-              <span class="text-cyber-text/50 uppercase text-[10px] tracking-wider">Type</span>
-              <span class="text-cyber-text capitalize">{{ infoDialog.type === 'dir' ? 'Folder' : 'File' }}</span>
+              <span class="text-cyber-text/50 uppercase text-[10px] tracking-wider">{{ sftpCopy.dialogs.infoType }}</span>
+              <span class="text-cyber-text capitalize">{{ infoDialog.type === 'dir' ? sftpCopy.dialogs.infoFolder : sftpCopy.dialogs.infoFile }}</span>
             </div>
             <div class="flex flex-col space-y-1">
-              <span class="text-cyber-text/50 uppercase text-[10px] tracking-wider">Size</span>
+              <span class="text-cyber-text/50 uppercase text-[10px] tracking-wider">{{ sftpCopy.dialogs.infoSize }}</span>
               <span class="text-cyber-text font-mono">{{ infoDialog.size }}</span>
             </div>
           </div>
           <div class="flex flex-col space-y-1">
-            <span class="text-cyber-text/50 uppercase text-[10px] tracking-wider">Modified</span>
+            <span class="text-cyber-text/50 uppercase text-[10px] tracking-wider">{{ sftpCopy.dialogs.infoModified }}</span>
             <span class="text-cyber-text">{{ infoDialog.modified }}</span>
           </div>
           <div class="flex flex-col space-y-1">
-            <span class="text-cyber-text/50 uppercase text-[10px] tracking-wider">Permissions</span>
+            <span class="text-cyber-text/50 uppercase text-[10px] tracking-wider">{{ sftpCopy.dialogs.infoPermissions }}</span>
             <span class="text-cyber-text font-mono">{{ infoDialog.permissions }}</span>
           </div>
         </div>
         <div class="flex justify-end pt-2">
           <button @click="infoDialog.visible = false" class="px-4 py-1.5 text-xs bg-neon-blue/10 text-neon-blue border border-neon-blue/40 rounded hover:bg-neon-blue/20 transition-colors">
-            Close
+            {{ sftpCopy.dialogs.infoClose }}
           </button>
         </div>
       </div>

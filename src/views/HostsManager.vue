@@ -4,9 +4,11 @@ import { useSessionStore } from '../stores/sessionStore'
 import { useUiStore } from '../stores/uiStore'
 import HostDetailSidebar from '../components/HostDetailSidebar.vue'
 import { Search, Monitor, TerminalSquare } from 'lucide-vue-next' // 移除了 Settings2
+import { useLocale } from '../composables/useLocale'
 
 const sessionStore = useSessionStore()
 const uiStore = useUiStore()
+const { t } = useLocale()
 const searchQuery = ref('')
 
 // 搜索过滤
@@ -32,7 +34,7 @@ const openDetail = (host: any) => uiStore.openHostDetail(host.id)
       
       <div class="px-6 pt-6 pb-2 shrink-0">
         <h1 class="text-xl font-bold text-neon-blue tracking-[0.2em] uppercase drop-shadow-[0_0_5px_rgba(0,243,255,0.8)]">
-          Connection Center
+          {{ t.hostsManager.title }}
         </h1>
       </div>
 
@@ -41,7 +43,7 @@ const openDetail = (host: any) => uiStore.openHostDetail(host.id)
         <section>
           <div class="text-xs font-bold text-cyber-text/50 uppercase tracking-widest mb-3 flex items-center">
             <div class="w-2 h-2 bg-neon-pink rounded-full mr-2 shadow-[0_0_5px_#ff00ff]"></div>
-            Quick Access
+            {{ t.hostsManager.quickAccessLabel }}
           </div>
           
           <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -57,8 +59,8 @@ const openDetail = (host: any) => uiStore.openHostDetail(host.id)
                    <TerminalSquare size="18" />
                 </div>
                 <div>
-                  <div class="font-bold text-cyber-text-bright group-hover:text-neon-blue transition-colors">Local Shell</div>
-                  <div class="text-[10px] text-cyber-text/60">PowerShell / CMD</div>
+                  <div class="font-bold text-cyber-text-bright group-hover:text-neon-blue transition-colors">{{ t.hostsManager.quickAccessHint }}</div>
+                  <div class="text-[10px] text-cyber-text/60">{{ t.hostsManager.quickAccessDescription }}</div>
                 </div>
               </div>
               <div class="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-neon-blue to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
@@ -67,16 +69,16 @@ const openDetail = (host: any) => uiStore.openHostDetail(host.id)
         </section>
 
         <section>
-           <div class="flex justify-between items-end mb-3">
+            <div class="flex justify-between items-end mb-3">
               <div class="text-xs font-bold text-cyber-text/50 uppercase tracking-widest flex items-center">
                 <div class="w-2 h-2 bg-neon-blue rounded-full mr-2 shadow-[0_0_5px_#00f3ff]"></div>
-                Saved Hosts
+               {{ t.hostsManager.savedTitle }}
               </div>
               <div class="relative group">
                  <input 
                     v-model="searchQuery"
                     type="text" 
-                    placeholder="Search nodes..." 
+                  :placeholder="t.hostsManager.searchPlaceholder" 
                     class="bg-cyber-black/50 border border-neon-blue/20 rounded px-3 py-1 text-xs text-neon-blue w-40 focus:w-60 focus:outline-none focus:border-neon-blue focus:shadow-neon-blue-glow transition-all duration-300 placeholder-cyber-text/30"
                  />
                  <Search class="absolute right-2 top-1.5 text-neon-blue/50 pointer-events-none" size="14" />
@@ -104,13 +106,13 @@ const openDetail = (host: any) => uiStore.openHostDetail(host.id)
                     @click.stop="connectSSH(host)"
                     class="px-3 py-1 text-[10px] bg-neon-blue/10 text-neon-blue border border-neon-blue/50 rounded hover:bg-neon-blue hover:text-black transition-all font-bold tracking-wider"
                   >
-                    SSH
+                    {{ t.hostsManager.actions.ssh }}
                   </button>
                   <button 
                     @click.stop="connectSftp(host)"
                     class="px-3 py-1 text-[10px] bg-neon-pink/10 text-neon-pink border border-neon-pink/50 rounded hover:bg-neon-pink hover:text-black transition-all font-bold tracking-wider"
                   >
-                    SFTP
+                    {{ t.hostsManager.actions.sftp }}
                   </button>
                 </div>
               </div>

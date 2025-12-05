@@ -2,10 +2,12 @@
 import { ref, computed } from 'vue'
 import { useMagicKeys, whenever } from '@vueuse/core'
 import { useSessionStore } from '../stores/sessionStore'
+import { useLocale } from '../composables/useLocale'
 
 const store = useSessionStore()
 const isOpen = ref(false)
 const query = ref('')
+const { t } = useLocale()
 
 // Ctrl+P 唤起
 const { Ctrl_P } = useMagicKeys()
@@ -42,7 +44,7 @@ const connect = (host: any) => {
       <div class="relative w-[600px] bg-cyber-black border-2 border-cyber-cyan shadow-neon-cyan overflow-hidden clip-corner">
         
         <div class="h-6 bg-cyber-cyan/10 flex items-center justify-between px-2 border-b border-cyber-cyan/30">
-            <span class="text-[10px] text-cyber-cyan font-mono tracking-widest">SYSTEM_OVERRIDE // CONNECT_PROTOCOL</span>
+            <span class="text-[10px] text-cyber-cyan font-mono tracking-widest">{{ t.commandPalette.badge }}</span>
             <div class="flex space-x-1">
                 <div class="w-2 h-2 bg-cyber-pink rounded-full"></div>
                 <div class="w-2 h-2 bg-cyber-cyan rounded-full"></div>
@@ -54,7 +56,7 @@ const connect = (host: any) => {
              <input 
                 v-model="query"
                 class="w-full bg-transparent border-none p-4 pl-10 text-xl text-cyber-cyan placeholder-cyber-cyan/30 focus:outline-none font-mono tracking-wide"
-                placeholder="Target Identification..." 
+                :placeholder="t.commandPalette.placeholder"
                 autoFocus
             />
         </div>
@@ -70,7 +72,7 @@ const connect = (host: any) => {
                 <span class="text-cyber-cyan font-bold group-hover:text-white group-hover:shadow-[0_0_8px_rgba(255,255,255,0.8)] transition-all">{{ host.alias }}</span>
                 <span class="text-xs text-cyber-cyan/50 font-mono">{{ host.user }}@{{ host.host }}</span>
             </div>
-            <span class="text-[10px] text-cyber-pink border border-cyber-pink/30 px-1 rounded opacity-0 group-hover:opacity-100">CONNECTING...</span>
+            <span class="text-[10px] text-cyber-pink border border-cyber-pink/30 px-1 rounded opacity-0 group-hover:opacity-100">{{ t.commandPalette.connecting }}</span>
           </div>
         </div>
         

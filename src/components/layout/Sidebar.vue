@@ -2,14 +2,17 @@
 import { computed } from 'vue'
 import { useUiStore } from '../../stores/uiStore'
 import { Server, Key, Network, ChevronLeft, Hexagon } from 'lucide-vue-next'
+import { useLocale } from '../../composables/useLocale'
 
 const uiStore = useUiStore()
-// ... (保持之前的 menuItems 和 selectItem 逻辑不变)
-const menuItems = [
-  { id: 'hosts', label: 'Hosts List', icon: Server },
-  { id: 'keychain', label: 'Security Keys', icon: Key },
-  { id: 'port-forwarding', label: 'Tunnels & Ports', icon: Network },
-]
+const { t } = useLocale()
+
+const menuItems = computed(() => [
+  { id: 'hosts', label: t.value.sidebar.hosts, icon: Server },
+  { id: 'keychain', label: t.value.sidebar.keychain, icon: Key },
+  { id: 'port-forwarding', label: t.value.sidebar.ports, icon: Network }
+])
+
 const isCollapsed = computed(() => uiStore.sidebarCollapsed)
 const selectItem = (id: any) => uiStore.showManager(id)
 </script>
@@ -22,7 +25,7 @@ const selectItem = (id: any) => uiStore.showManager(id)
     <div class="h-14 flex items-center px-4 border-b border-neon-blue/10 shrink-0" :class="isCollapsed ? 'justify-center' : 'justify-between'">
       <div v-if="!isCollapsed" class="flex items-center space-x-2 text-neon-blue font-bold tracking-wider animate-pulse-slow">
         <Hexagon size="20" class="fill-neon-blue/20 stroke-neon-blue"/>
-        <span>CYBER.TERM</span>
+        <span>{{ t.sidebar.brand }}</span>
       </div>
       <button @click="uiStore.toggleSidebar" class="text-cyber-text hover:text-neon-blue transition p-1 rounded hover:bg-neon-blue/10">
         <ChevronLeft size="20" class="transition-transform duration-300" :class="isCollapsed ? 'rotate-180' : ''" />
@@ -52,7 +55,7 @@ const selectItem = (id: any) => uiStore.showManager(id)
     <div class="p-4 border-t border-neon-blue/10 shrink-0">
        <div class="flex items-center space-x-3 p-2 rounded-lg border border-neon-blue/10 bg-cyber-black/50">
          <div class="w-2 h-2 rounded-full bg-neon-green shadow-[0_0_5px_#0aff00] animate-pulse"></div>
-         <span v-if="!isCollapsed" class="text-xs text-cyber-text">System Online</span>
+        <span v-if="!isCollapsed" class="text-xs text-cyber-text">{{ t.sidebar.systemOnline }}</span>
        </div>
     </div>
   </div>

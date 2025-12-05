@@ -8,11 +8,14 @@ import KeychainManager from './views/KeychainManager.vue' // ✅ 引入新组件
 import TerminalView from './components/TerminalView.vue'
 import SftpView from './components/SftpView.vue'
 import CommandPalette from './components/CommandPalette.vue' // 建议加上命令面板，如果项目中有的话
+import SettingsPanel from './components/SettingsPanel.vue'
 import { useUiStore } from './stores/uiStore'
 import { useSessionStore } from './stores/sessionStore'
+import { useLocale } from './composables/useLocale'
 
 const uiStore = useUiStore()
 const sessionStore = useSessionStore()
+const { t } = useLocale()
 
 // 用于存储所有 TerminalView 组件的引用 (Key: sessionId, Value: Component Instance)
 const terminalRefs = ref<Record<string, any>>({})
@@ -56,8 +59,9 @@ onMounted(async () => {
 <template>
   <div class="flex flex-col h-screen w-screen bg-cyber-black font-sans overflow-hidden border border-cyber-dark text-white">
     
-    <!-- 全局命令面板 (可选) -->
+    <!-- 全局命令面板 -->
     <CommandPalette />
+    <SettingsPanel />
 
     <!-- 顶部标题栏 -->
     <TitleBar class="shrink-0" />
@@ -88,12 +92,12 @@ onMounted(async () => {
             <!-- 端口转发 (暂未实现) -->
             <div v-else-if="uiStore.currentView === 'port-forwarding'" class="h-full flex flex-col items-center justify-center text-cyber-text/50 font-mono">
               <span class="text-neon-pink text-4xl mb-4 opacity-50">🚧</span>
-              <span>MODULE_UNDER_CONSTRUCTION...</span>
+              <span>{{ t.appShell.underConstruction }}</span>
             </div>
 
             <!-- 默认/错误状态 -->
             <div v-else class="h-full flex items-center justify-center text-cyber-text/50 font-mono">
-              module_not_loaded...
+              {{ t.appShell.moduleFallback }}
             </div>
 
             <!-- 装饰性扫描线背景 -->
@@ -107,8 +111,8 @@ onMounted(async () => {
             <!-- 空状态 -->
             <div v-if="sessionStore.sessions.length === 0"
               class="flex-1 flex flex-col items-center justify-center text-cyber-text opacity-50 font-mono tracking-widest">
-              <div class="mb-4 animate-pulse text-neon-blue text-lg">AWAITING INPUT SIGNAL...</div>
-              <div class="text-xs">Select a host node to initiate connection sequence.</div>
+              <div class="mb-4 animate-pulse text-neon-blue text-lg">{{ t.terminal.emptyTitle }}</div>
+              <div class="text-xs">{{ t.terminal.emptySubtitle }}</div>
             </div>
 
             <!-- 会话实例列表：终端 & SFTP -->

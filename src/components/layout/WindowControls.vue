@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { Minus, Square, Copy, X } from 'lucide-vue-next'
+import { useLocale } from '../../composables/useLocale'
 
 const isMaximized = ref(false)
+const { t } = useLocale()
+const windowText = computed(() => t.value.windowControls)
 
 const minimize = () => window.electronAPI.minimize()
 const closeApp = () => window.electronAPI.close()
@@ -27,7 +30,7 @@ onMounted(async () => {
     <button 
       @click="minimize" 
       class="h-full w-12 flex items-center justify-center text-cyber-text hover:bg-white/10 hover:text-white transition-colors focus:outline-none"
-      title="Minimize"
+      :title="windowText.minimize"
     >
       <Minus size="16" />
     </button>
@@ -35,7 +38,7 @@ onMounted(async () => {
     <button 
       @click="toggleMaximize" 
       class="h-full w-12 flex items-center justify-center text-cyber-text hover:bg-white/10 hover:text-white transition-colors focus:outline-none"
-      :title="isMaximized ? 'Restore' : 'Maximize'"
+      :title="isMaximized ? windowText.restore : windowText.maximize"
     >
       <Copy v-if="isMaximized" size="14" />
       <Square v-else size="14" />
@@ -44,7 +47,7 @@ onMounted(async () => {
     <button 
       @click="closeApp" 
       class="h-full w-12 flex items-center justify-center text-cyber-text hover:bg-red-600 hover:text-white transition-colors focus:outline-none"
-      title="Close"
+      :title="windowText.close"
     >
       <X size="18" />
     </button>

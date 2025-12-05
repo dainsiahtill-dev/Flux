@@ -5,9 +5,12 @@ import { FitAddon } from 'xterm-addon-fit'
 import 'xterm/css/xterm.css'
 import { useSessionStore } from '../stores/sessionStore'
 import ConnectionOverlay from './ConnectionOverlay.vue'
+import { useLocale } from '../composables/useLocale'
 
 const props = defineProps<{ sessionId: string }>()
 const sessionStore = useSessionStore()
+const { t } = useLocale()
+const overlayCopy = computed(() => t.value.connectionOverlay)
 
 const currentSession = computed(() => sessionStore.sessions.find(s => s.id === props.sessionId))
 
@@ -39,8 +42,8 @@ const handleCredentialsSubmit = (creds: { user?: string; password?: string }) =>
 
   // 2. 更新 UI
   const loadingText = creds.user 
-    ? 'Updating identity protocols...' 
-    : 'Verifying security token...'
+    ? overlayCopy.value.messages.updatingIdentity
+    : overlayCopy.value.messages.verifyingToken
   sessionStore.updateSessionStatus(props.sessionId, 'authenticating', loadingText)
   
   // 3. 查找原始配置

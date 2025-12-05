@@ -2,9 +2,11 @@
 import { useSessionStore } from '../../stores/sessionStore'
 import { useUiStore } from '../../stores/uiStore'
 import { X, Plus, SquareTerminal, FolderGit2 } from 'lucide-vue-next'
+import { useLocale } from '../../composables/useLocale'
 
 const sessionStore = useSessionStore()
 const uiStore = useUiStore()
+const { t } = useLocale()
 
 const handleTabClick = (id: string) => sessionStore.setActive(id)
 const closeTab = (e: Event, id: string) => { e.stopPropagation(); sessionStore.closeSession(id) }
@@ -32,7 +34,7 @@ const addNew = () => uiStore.openCreateHost()
       >
         <Plus size="20" class="transition-transform group-hover:rotate-90 group-hover:drop-shadow-[0_0_5px_rgba(0,243,255,0.5)]" />
         <span class="absolute top-full mt-2 left-0 bg-cyber-black border border-neon-blue text-[10px] text-neon-blue px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none shadow-neon-blue-inset">
-          New Host
+          {{ t.topTabs.newHostTooltip }}
         </span>
       </div>
     </div>
@@ -68,7 +70,7 @@ const addNew = () => uiStore.openCreateHost()
             v-if="session.type === 'sftp'" 
             class="text-[10px] px-2 py-0.5 rounded-full border border-neon-pink/40 text-neon-pink bg-neon-pink/10 font-bold tracking-wider"
           >
-            SFTP
+            {{ t.topTabs.sftpBadge }}
           </span>
         </div>
         <div 

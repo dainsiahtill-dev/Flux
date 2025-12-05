@@ -3,13 +3,16 @@ import { computed, ref, watch } from 'vue'
 import { useUiStore } from '../stores/uiStore'
 import { useSessionStore } from '../stores/sessionStore'
 import { X, Save, Power, Trash2, KeyRound, FileKey, Eye, EyeOff, Terminal, FolderOpen, FolderGit2 } from 'lucide-vue-next'
+import { useLocale } from '../composables/useLocale'
 
 const uiStore = useUiStore()
 const sessionStore = useSessionStore()
+const { t } = useLocale()
+const hostText = computed(() => t.value.hostDetail)
 
 const isEditMode = computed(() => !!uiStore.selectedHostId)
-const title = computed(() => isEditMode.value ? 'Host Details' : 'New Host Node')
-const subTitle = computed(() => isEditMode.value ? 'Configuration Protocol' : 'Initialization Sequence')
+const title = computed(() => isEditMode.value ? hostText.value.titles.edit : hostText.value.titles.create)
+const subTitle = computed(() => isEditMode.value ? hostText.value.subtitles.edit : hostText.value.subtitles.create)
 
 const formData = ref<any>({
   alias: '',
@@ -165,30 +168,30 @@ const remove = () => {
     <div class="flex-1 overflow-y-auto p-6 space-y-6">
       <div class="grid grid-cols-2 gap-4">
         <div class="group">
-          <label class="block text-[10px] text-cyber-text/50 uppercase mb-1">Alias / Name</label>
-          <input v-model="formData.alias" type="text" class="cyber-input" placeholder="e.g. Production DB" />
+          <label class="block text-[10px] text-cyber-text/50 uppercase mb-1">{{ hostText.labels.alias }}</label>
+          <input v-model="formData.alias" type="text" class="cyber-input" :placeholder="hostText.placeholders.alias" />
         </div>
         <div>
-          <label class="block text-[10px] text-cyber-text/50 uppercase mb-1">Group Tag</label>
-          <input v-model="formData.group" type="text" class="cyber-input" placeholder="Default" />
+          <label class="block text-[10px] text-cyber-text/50 uppercase mb-1">{{ hostText.labels.group }}</label>
+          <input v-model="formData.group" type="text" class="cyber-input" :placeholder="hostText.placeholders.group" />
         </div>
       </div>
 
       <div class="p-4 rounded border border-neon-blue/10 bg-cyber-light/20 relative">
-        <div class="absolute top-0 left-0 px-2 py-0.5 bg-neon-blue/20 text-neon-blue text-[10px]">SSH V2</div>
+        <div class="absolute top-0 left-0 px-2 py-0.5 bg-neon-blue/20 text-neon-blue text-[10px]">{{ hostText.badges.protocol }}</div>
         <div class="mt-4 space-y-4">
           <div>
-            <label class="block text-[10px] text-cyber-text/50 uppercase mb-1">Hostname / IP</label>
-            <input v-model="formData.host" type="text" class="cyber-input font-mono text-neon-blue" placeholder="192.168.x.x" />
+            <label class="block text-[10px] text-cyber-text/50 uppercase mb-1">{{ hostText.labels.host }}</label>
+            <input v-model="formData.host" type="text" class="cyber-input font-mono text-neon-blue" :placeholder="hostText.placeholders.host" />
           </div>
           <div class="grid grid-cols-3 gap-4">
             <div class="col-span-2">
-               <label class="block text-[10px] text-cyber-text/50 uppercase mb-1">Username</label>
-               <input v-model="formData.user" type="text" class="cyber-input" placeholder="root" />
+               <label class="block text-[10px] text-cyber-text/50 uppercase mb-1">{{ hostText.labels.user }}</label>
+               <input v-model="formData.user" type="text" class="cyber-input" :placeholder="hostText.placeholders.user" />
             </div>
             <div>
-               <label class="block text-[10px] text-cyber-text/50 uppercase mb-1">Port</label>
-               <input v-model="formData.port" type="number" class="cyber-input font-mono" />
+               <label class="block text-[10px] text-cyber-text/50 uppercase mb-1">{{ hostText.labels.port }}</label>
+               <input v-model="formData.port" type="number" class="cyber-input font-mono" :placeholder="hostText.placeholders.port" />
             </div>
           </div>
         </div>
@@ -196,7 +199,7 @@ const remove = () => {
 
       <!-- 认证方式 -->
       <div>
-        <label class="block text-[10px] text-cyber-text/50 uppercase mb-2">Authentication Method</label>
+        <label class="block text-[10px] text-cyber-text/50 uppercase mb-2">{{ hostText.labels.authMethod }}</label>
         <div class="flex space-x-2 mb-4">
           <button 
             @click="formData.authType = 'password'"
@@ -204,7 +207,7 @@ const remove = () => {
             :class="formData.authType === 'password' ? 'border-neon-blue bg-neon-blue/10 text-neon-blue shadow-[0_0_10px_rgba(0,243,255,0.2)]' : 'border-cyber-text/20 text-cyber-text/50 hover:text-cyber-text'"
           >
             <KeyRound size="14" />
-            <span>Password</span>
+            <span>{{ hostText.authTabs.password }}</span>
           </button>
           <button 
             @click="formData.authType = 'privateKey'"
@@ -212,7 +215,7 @@ const remove = () => {
             :class="formData.authType === 'privateKey' ? 'border-neon-blue bg-neon-blue/10 text-neon-blue shadow-[0_0_10px_rgba(0,243,255,0.2)]' : 'border-cyber-text/20 text-cyber-text/50 hover:text-cyber-text'"
           >
             <FileKey size="14" />
-            <span>Private Key</span>
+            <span>{{ hostText.authTabs.privateKey }}</span>
           </button>
         </div>
 
@@ -220,12 +223,12 @@ const remove = () => {
            
            <!-- ✅ 1. 快速选择已保存的 Key -->
            <div v-if="sessionStore.savedKeys.length > 0">
-              <label class="block text-[10px] text-cyber-text/50 uppercase mb-1">Select from Keychain</label>
+              <label class="block text-[10px] text-cyber-text/50 uppercase mb-1">{{ hostText.labels.selectKey }}</label>
               <select 
                 @change="(e: any) => formData.privateKeyPath = e.target.value"
                 class="w-full bg-cyber-black border border-cyber-text/30 rounded text-xs text-cyber-text-bright p-2 focus:border-neon-blue focus:outline-none"
               >
-                <option value="" disabled selected>-- Select a Key --</option>
+                <option value="" disabled selected>{{ hostText.selectPlaceholder }}</option>
                 <option v-for="key in sessionStore.savedKeys" :key="key.id" :value="key.path">
                   {{ key.alias }}
                 </option>
@@ -235,14 +238,14 @@ const remove = () => {
            <!-- ✅ 2. 手动输入或浏览文件 -->
            <div>
              <label class="block text-[10px] text-cyber-text/50 uppercase mb-1">
-                {{ sessionStore.savedKeys.length > 0 ? 'Or Manual Path' : 'Private Key Path' }}
+                {{ sessionStore.savedKeys.length > 0 ? hostText.labels.manualKeyAlt : hostText.labels.manualKey }}
              </label>
              <div class="flex items-center space-x-2">
-                <input v-model="formData.privateKeyPath" type="text" class="cyber-input font-mono text-xs" placeholder="e.g. C:/Users/name/.ssh/id_rsa" />
+                <input v-model="formData.privateKeyPath" type="text" class="cyber-input font-mono text-xs" :placeholder="hostText.placeholders.keyPath" />
                 <button 
                   @click="pickFile"
                   class="p-1.5 border border-cyber-text/30 rounded text-cyber-text/50 hover:text-neon-blue hover:border-neon-blue transition-colors bg-cyber-light/10"
-                  title="Browse File"
+                  :title="hostText.tooltips.browse"
                 >
                   <FolderOpen size="14" />
                 </button>
@@ -252,14 +255,14 @@ const remove = () => {
 
         <div class="animate-in fade-in slide-in-from-top-2 duration-300">
            <label class="block text-[10px] text-cyber-text/50 uppercase mb-1">
-             {{ formData.authType === 'privateKey' ? 'Passphrase (Optional)' : 'Password (Optional)' }}
+             {{ formData.authType === 'privateKey' ? hostText.labels.passphrase : hostText.labels.secret }}
            </label>
            <div class="relative">
              <input 
                v-model="formData.password" 
                :type="showPassword ? 'text' : 'password'"
                class="cyber-input text-neon-pink focus:border-neon-pink focus:shadow-[0_1px_0_#ff00ff] pr-8" 
-               placeholder="Leave empty to ask on connect" 
+               :placeholder="hostText.placeholders.secret"
              />
              <button @click="showPassword = !showPassword" class="absolute right-0 top-1 text-cyber-text/40 hover:text-neon-pink transition-colors">
                <EyeOff v-if="showPassword" size="14" />
@@ -277,9 +280,9 @@ const remove = () => {
            </div>
            <div class="flex flex-col">
              <span class="text-[10px] font-bold text-cyber-text group-hover:text-white transition-colors flex items-center gap-1">
-               <Terminal size="10" /> Use Native OpenSSH
+               <Terminal size="10" /> {{ hostText.labels.nativeSsh }}
              </span>
-             <span class="text-[8px] text-cyber-text/40">Use system SSH binary (Better compatibility)</span>
+             <span class="text-[8px] text-cyber-text/40">{{ hostText.labels.nativeSshHint }}</span>
            </div>
         </label>
       </div>
@@ -293,14 +296,14 @@ const remove = () => {
           class="w-full py-3 bg-neon-blue text-black font-bold uppercase tracking-widest rounded hover:bg-white hover:shadow-[0_0_15px_rgba(0,243,255,0.8)] transition-all flex items-center justify-center space-x-2 group"
         >
           <Power size="18" class="group-hover:animate-pulse" />
-          <span>SSH Terminal</span>
+          <span>{{ hostText.buttons.ssh }}</span>
         </button>
         <button 
           @click="connectSftp"
           class="w-full py-3 bg-neon-pink/20 text-neon-pink font-bold uppercase tracking-widest rounded border border-neon-pink/60 hover:bg-neon-pink hover:text-black hover:shadow-[0_0_15px_rgba(255,0,255,0.5)] transition-all flex items-center justify-center space-x-2 group"
         >
           <FolderGit2 size="18" class="group-hover:drop-shadow-[0_0_6px_rgba(255,0,255,0.6)]" />
-          <span>SFTP Browser</span>
+          <span>{{ hostText.buttons.sftp }}</span>
         </button>
       </div>
       
@@ -319,13 +322,13 @@ const remove = () => {
           :class="{ 'bg-neon-blue/10 border-neon-blue/50 text-neon-blue': hasChanges && isEditMode }"
         >
           <Save size="16" />
-          <span class="text-xs font-bold tracking-wider">SAVE CONFIGURATION</span>
+          <span class="text-xs font-bold tracking-wider">{{ hostText.buttons.saveConfig }}</span>
         </button>
       </Transition>
       
       <button v-if="isEditMode" @click="remove" class="w-full py-2 border border-red-900/40 text-red-600 hover:text-red-500 hover:bg-red-900/20 hover:border-red-500 transition-colors rounded flex items-center justify-center space-x-2 group">
         <Trash2 size="16" class="group-hover:stroke-red-400" />
-        <span class="text-xs font-bold tracking-wider">DELETE HOST</span>
+        <span class="text-xs font-bold tracking-wider">{{ hostText.buttons.delete }}</span>
       </button>
     </div>
 

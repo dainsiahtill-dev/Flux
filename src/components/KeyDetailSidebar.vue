@@ -3,9 +3,12 @@ import { computed, ref, watch } from 'vue'
 import { useUiStore } from '../stores/uiStore'
 import { useSessionStore } from '../stores/sessionStore'
 import { ArrowRight, Copy, ShieldCheck, Save } from 'lucide-vue-next'
+import { useLocale } from '../composables/useLocale'
 
 const uiStore = useUiStore()
 const sessionStore = useSessionStore()
+const { t } = useLocale()
+const keyText = computed(() => t.value.keyDetail)
 
 const currentKey = computed(() => 
   sessionStore.savedKeys.find(k => k.id === uiStore.selectedKeyId)
@@ -22,7 +25,7 @@ const originalContent = ref('') // 用于检测内容变更
 
 // 读取文件内容
 const loadKeyContent = async (path: string) => {
-  formData.value.content = 'Loading key content...'
+  formData.value.content = keyText.value.states.loading
   
   try {
     if (window.electronAPI && window.electronAPI.readFile) {
@@ -31,13 +34,13 @@ const loadKeyContent = async (path: string) => {
         formData.value.content = content
         originalContent.value = content // 记录原始值
       } else {
-        formData.value.content = content || 'Error: Unable to read file.'
+        formData.value.content = content || keyText.value.states.readError
       }
     } else {
-      formData.value.content = 'Error: API not ready.'
+      formData.value.content = keyText.value.states.apiError
     }
   } catch (e: any) {
-    formData.value.content = `Error: ${e.message}`
+    formData.value.content = `${keyText.value.states.readError} (${e.message})`
   }
 }
 
@@ -72,7 +75,7 @@ const save = async () => {
          originalContent.value = formData.value.content // 更新原始值
          console.log('File saved successfully')
        } else {
-         alert('Failed to write file to disk.')
+         alert(keyText.value.states.writeFailed)
        }
     }
     
@@ -98,7 +101,7 @@ const copyToClipboard = () => {
     <div class="flex items-center justify-between p-6 border-b border-neon-blue/10 shrink-0">
       <div class="flex flex-col">
         <h2 class="text-xl font-bold text-white tracking-wide uppercase flex items-center gap-2">
-          Edit Key
+          {{ keyText.title }}
         </h2>
       </div>
       <div class="flex items-center gap-4">
@@ -113,7 +116,7 @@ const copyToClipboard = () => {
       
       <!-- Label -->
       <div class="group relative">
-        <label class="absolute -top-2 left-2 px-1 bg-cyber-black text-[10px] text-cyber-text/70 uppercase">Label *</label>
+        <label class="absolute -top-2 left-2 px-1 bg-cyber-black text-[10px] text-cyber-text/70 uppercase">{{ keyText.labels.alias }}</label>
         <div class="border border-cyber-text/30 rounded p-1 focus-within:border-neon-blue transition-colors">
            <input v-model="formData.alias" type="text" class="w-full bg-transparent text-sm text-white px-2 py-1 outline-none font-medium" />
         </div>
@@ -122,7 +125,7 @@ const copyToClipboard = () => {
       <!-- Private Key (Purple Style & Editable) -->
       <div class="relative">
         <label class="absolute -top-2 left-2 px-1 bg-cyber-black text-[10px] text-purple-400 uppercase z-10 flex items-center gap-1 font-bold tracking-wider">
-          Private key *
+          {{ keyText.labels.privateKey }}
         </label>
         <div class="border border-purple-500/50 rounded p-0 relative group bg-purple-500/5 hover:bg-purple-500/10 transition-colors focus-within:bg-purple-500/10 focus-within:border-purple-400 focus-within:shadow-[0_0_15px_rgba(168,85,247,0.2)]">
           <textarea 
@@ -132,25 +135,25 @@ const copyToClipboard = () => {
           ></textarea>
           
           <div class="absolute bottom-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-             <button 
+            <button 
               @click="copyToClipboard"
               class="bg-cyber-black/80 text-purple-300 text-[10px] px-2 py-1 rounded border border-purple-500/30 hover:bg-purple-500 hover:text-white transition-colors uppercase font-bold tracking-wider flex items-center gap-1"
             >
-              <Copy size="10" /> Copy
+              <Copy size="10" /> {{ keyText.buttons.copy }}
             </button>
           </div>
         </div>
         <div class="text-[9px] text-cyber-text/40 mt-1 flex justify-between">
-           <span>Path: {{ formData.path }}</span>
-           <span v-if="formData.content !== originalContent" class="text-neon-pink animate-pulse">Unsaved Changes</span>
+           <span>{{ keyText.info.path }}: {{ formData.path }}</span>
+           <span v-if="formData.content !== originalContent" class="text-neon-pink animate-pulse">{{ keyText.info.unsaved }}</span>
         </div>
       </div>
 
       <!-- Public Key -->
       <div class="group relative opacity-60 hover:opacity-100 transition-opacity">
-        <label class="absolute -top-2 left-2 px-1 bg-cyber-black text-[10px] text-cyber-text/50 uppercase">Public key</label>
+        <label class="absolute -top-2 left-2 px-1 bg-cyber-black text-[10px] text-cyber-text/50 uppercase">{{ keyText.labels.publicKey }}</label>
         <div class="border border-cyber-text/20 rounded p-0">
-           <textarea readonly class="w-full h-20 bg-transparent text-[10px] text-cyber-text p-3 outline-none font-mono resize-none" placeholder="Auto-generated from private key (Coming soon)"></textarea>
+           <textarea readonly class="w-full h-20 bg-transparent text-[10px] text-cyber-text p-3 outline-none font-mono resize-none" :placeholder="keyText.placeholders.privateKey"></textarea>
         </div>
       </div>
 
@@ -159,7 +162,7 @@ const copyToClipboard = () => {
     <!-- 底部按钮 -->
     <div class="p-6 border-t border-neon-blue/10 bg-cyber-black/50 space-y-3 shrink-0">
       <div class="flex justify-between items-center text-cyber-text/50 text-[10px] mb-1">
-        <span>Actions</span>
+        <span>{{ keyText.labels.actions }}</span>
       </div>
       
       <button 
@@ -169,7 +172,7 @@ const copyToClipboard = () => {
       >
         <Save v-if="!isSaving" size="16" />
         <div v-else class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-        <span>{{ isSaving ? 'SAVING...' : 'SAVE & UPDATE' }}</span>
+        <span>{{ isSaving ? keyText.buttons.saving : keyText.buttons.save }}</span>
       </button>
     </div>
 

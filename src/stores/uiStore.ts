@@ -1,11 +1,21 @@
 import { defineStore } from 'pinia'
+import type { LanguageCode } from '../types/i18n'
 
 export type ViewType = 'hosts' | 'keychain' | 'port-forwarding' | 'terminal'
+
+const detectLanguage = (): LanguageCode => {
+  if (typeof navigator !== 'undefined') {
+    return navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en'
+  }
+  return 'en'
+}
 
 export const useUiStore = defineStore('ui', {
   state: () => ({
     sidebarCollapsed: false,
     currentView: 'hosts' as ViewType,
+    language: detectLanguage(),
+    settingsOpen: false,
     
     rightSidebarOpen: false,
     selectedHostId: null as string | null,
@@ -17,6 +27,22 @@ export const useUiStore = defineStore('ui', {
   actions: {
     toggleSidebar() {
       this.sidebarCollapsed = !this.sidebarCollapsed
+    },
+
+    toggleSettings() {
+      this.settingsOpen = !this.settingsOpen
+    },
+
+    openSettings() {
+      this.settingsOpen = true
+    },
+
+    closeSettings() {
+      this.settingsOpen = false
+    },
+
+    setLanguage(language: LanguageCode) {
+      this.language = language
     },
 
     setView(view: ViewType) {

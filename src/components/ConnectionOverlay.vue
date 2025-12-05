@@ -2,6 +2,7 @@
 import { ref, computed, nextTick, onMounted, watch } from 'vue'
 import { X, Plug, Keyboard, TerminalSquare, Eye, EyeOff, Activity, ChevronRight, Hash, User, ShieldAlert, FileKey, AlertCircle } from 'lucide-vue-next'
 import { Session } from '../stores/sessionStore'
+import { useLocale } from '../composables/useLocale'
 
 const props = defineProps<{
   session: Session
@@ -15,6 +16,8 @@ const emit = defineEmits<{
 const inputVal = ref('')
 const showPassword = ref(false)
 const logsContainer = ref<HTMLElement | null>(null)
+const { t } = useLocale()
+const overlayCopy = computed(() => t.value.connectionOverlay)
 
 const logs = computed(() => props.session.logs || [])
 
@@ -37,12 +40,30 @@ const isError = computed(() => props.session.status === 'error')
 
 const inputConfig = computed(() => {
   if (props.session.status === 'username-needed') {
-    return { type: 'text', placeholder: 'ENTER_USERNAME...', icon: User, label: 'Identity Required', btnText: 'PROCEED' }
+    return {
+      type: 'text',
+      placeholder: overlayCopy.value.inputs.usernamePlaceholder,
+      icon: User,
+      label: overlayCopy.value.inputs.identityLabel,
+      btnText: overlayCopy.value.inputs.proceed
+    }
   }
   if (props.session.authType === 'privateKey') {
-    return { type: showPassword.value ? 'text' : 'password', placeholder: 'ENTER_PASSPHRASE...', icon: FileKey, label: 'Key Passphrase Required', btnText: 'UNLOCK KEY' }
+    return {
+      type: showPassword.value ? 'text' : 'password',
+      placeholder: overlayCopy.value.inputs.passphrasePlaceholder,
+      icon: FileKey,
+      label: overlayCopy.value.inputs.passphraseLabel,
+      btnText: overlayCopy.value.inputs.unlock
+    }
   }
-  return { type: showPassword.value ? 'text' : 'password', placeholder: 'ENTER_PASSWORD...', icon: Hash, label: 'Security Token Required', btnText: 'AUTHENTICATE' }
+  return {
+    type: showPassword.value ? 'text' : 'password',
+    placeholder: overlayCopy.value.inputs.passwordPlaceholder,
+    icon: Hash,
+    label: overlayCopy.value.inputs.securityLabel,
+    btnText: overlayCopy.value.inputs.authenticate
+  }
 })
 
 const submit = () => {
@@ -57,12 +78,15 @@ const submit = () => {
 
 const statusText = computed(() => {
   const s = props.session.status
-  if (s === 'connected') return 'ACCESS GRANTED'
-  if (s === 'error') return 'CONNECTION FAILED' // 显眼的错误文本
-  if (s === 'username-needed') return 'USER ID REQUIRED'
-  if (s === 'password-needed') return props.session.authType === 'privateKey' ? 'KEY LOCKED' : 'AUTH REQUIRED'
-  if (s === 'authenticating') return 'VERIFYING...'
-  return 'ESTABLISHING UPLINK...'
+  const statuses = overlayCopy.value.statuses
+  if (s === 'connected') return statuses.accessGranted
+  if (s === 'error') return statuses.connectionFailed
+  if (s === 'username-needed') return statuses.userIdRequired
+  if (s === 'password-needed') {
+    return props.session.authType === 'privateKey' ? statuses.keyLocked : statuses.authRequired
+  }
+  if (s === 'authenticating') return statuses.verifying
+  return statuses.establishing
 })
 
 const stepStatus = computed(() => {
@@ -96,10 +120,10 @@ const stepStatus = computed(() => {
           <Activity v-else class="text-neon-blue animate-pulse" size="18" />
           <div>
             <h3 class="text-sm font-bold text-white tracking-widest uppercase drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]">
-              System Link // {{ session.name }}
+              {{ overlayCopy.titlePrefix }}{{ session.name }}
             </h3>
             <p class="text-[10px] font-mono tracking-wider" :class="isError ? 'text-red-400' : 'text-neon-blue/60'">
-              TARGET: {{ session.host }}
+              {{ overlayCopy.targetLabel }}: {{ session.host }}
             </p>
           </div>
         </div>
@@ -119,18 +143,18 @@ const stepStatus = computed(() => {
 
           <div class="step-dot" :class="isError ? 'active-error' : (stepStatus >= 1 ? 'active' : '')">
             <Plug size="14" />
-            <span class="step-label">NET</span>
+            <span class="step-label">{{ overlayCopy.steps.network }}</span>
           </div>
 
           <div class="step-dot" :class="isError ? 'active-error' : (stepStatus >= 2 ? 'active-warning' : '')">
             <ShieldAlert v-if="isInputNeeded" size="14" />
             <Keyboard v-else size="14" />
-            <span class="step-label">AUTH</span>
+            <span class="step-label">{{ overlayCopy.steps.auth }}</span>
           </div>
 
           <div class="step-dot" :class="isError ? 'active-error' : (stepStatus >= 3 ? 'active-success' : '')">
             <TerminalSquare size="14" />
-            <span class="step-label">TERM</span>
+            <span class="step-label">{{ overlayCopy.steps.terminal }}</span>
           </div>
         </div>
       </div>
@@ -143,8 +167,8 @@ const stepStatus = computed(() => {
               > {{ log }}
             </span>
           </div>
-          <div v-if="isError" class="text-red-500 mt-1 font-bold animate-pulse">_ Process Terminated.</div>
-          <div v-else class="animate-pulse text-neon-blue mt-1">_</div>
+          <div v-if="isError" class="text-red-500 mt-1 font-bold animate-pulse">{{ overlayCopy.logs.terminated }}</div>
+          <div v-else class="animate-pulse text-neon-blue mt-1">{{ overlayCopy.logs.waiting }}</div>
         </div>
       </div>
 
@@ -178,7 +202,7 @@ const stepStatus = computed(() => {
           :class="isError ? 'text-red-500 hover:text-red-400' : 'text-cyber-text hover:text-red-400'"
         >
           <X size="14" class="group-hover/btn:rotate-90 transition-transform" />
-          <span>{{ isError ? 'CLOSE CONNECTION' : 'ABORT SEQUENCE' }}</span>
+          <span>{{ isError ? overlayCopy.footer.closeError : overlayCopy.footer.abort }}</span>
         </button>
 
         <button v-if="isInputNeeded && !isError" @click="submit" class="cy-button">
