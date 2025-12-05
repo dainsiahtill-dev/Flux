@@ -19,6 +19,7 @@ export interface SavedHost {
   authType?: 'password' | 'privateKey';
   password?: string; 
   privateKeyPath?: string;
+  useNativeSSH?: boolean;
 }
 
 export interface Session {
@@ -29,6 +30,7 @@ export interface Session {
   // ✅ 新增：让 Session 记住自己的认证方式和密钥路径
   authType?: 'password' | 'privateKey';
   privateKeyPath?: string;
+  useNativeSSH?: boolean;
   
   savedHostId?: string;
   status: 'connecting' | 'username-needed' | 'authenticating' | 'password-needed' | 'connected' | 'disconnected' | 'error';
@@ -131,16 +133,17 @@ export const useSessionStore = defineStore('session', {
       } else {
         const newHost: SavedHost = {
           id: uuidv4(),
-          alias: hostData.alias || 'Untitled',
-          host: hostData.host || '',
-          port: hostData.port || 22,
-          user: hostData.user || 'root',
-          group: hostData.group || 'Default',
-          authType: 'password',
-          privateKeyPath: '',
-          ...hostData as SavedHost 
-        }
-        this.savedHosts.push(newHost)
+        alias: hostData.alias || 'Untitled',
+        host: hostData.host || '',
+        port: hostData.port || 22,
+        user: hostData.user || 'root',
+        group: hostData.group || 'Default',
+        authType: 'password',
+        privateKeyPath: '',
+        useNativeSSH: false,
+        ...hostData as SavedHost 
+      }
+      this.savedHosts.push(newHost)
       }
       await this.persistHosts()
     },
@@ -172,6 +175,7 @@ export const useSessionStore = defineStore('session', {
         // ✅ 核心修改：把 authType 和 privateKeyPath 带入 Session
         authType: hostConfig.authType || 'password',
         privateKeyPath: hostConfig.privateKeyPath,
+        useNativeSSH: !!(hostConfig as any).useNativeSSH,
         
         savedHostId: hostConfig.id,
         status: 'connecting', 
@@ -198,6 +202,7 @@ export const useSessionStore = defineStore('session', {
         user: hostConfig.user,
         authType: hostConfig.authType || 'password',
         privateKeyPath: hostConfig.privateKeyPath,
+        useNativeSSH: !!(hostConfig as any).useNativeSSH,
         savedHostId: hostConfig.id,
         status: 'connecting',
         logs: [`Opening SFTP to ${hostConfig.host}...`]

@@ -1,20 +1,23 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import TitleBar from './components/layout/TitleBar.vue'
-import Sidebar from './components/layout/Sidebar.vue'
-import TopTabBar from './components/layout/TopTabBar.vue'
-import HostsManager from './views/HostsManager.vue'
-import KeychainManager from './views/KeychainManager.vue' // ✅ 引入新组件
-import TerminalView from './components/TerminalView.vue'
-import SftpView from './components/SftpView.vue'
-import CommandPalette from './components/CommandPalette.vue' // 建议加上命令面板，如果项目中有的话
-import SettingsPanel from './components/SettingsPanel.vue'
-import { useUiStore } from './stores/uiStore'
-import { useSessionStore } from './stores/sessionStore'
-import { useLocale } from './composables/useLocale'
+import { onMounted, ref } from "vue"
+import TitleBar from "./components/layout/TitleBar.vue"
+import Sidebar from "./components/layout/Sidebar.vue"
+import TopTabBar from "./components/layout/TopTabBar.vue"
+import HostsManager from "./views/HostsManager.vue"
+import KeychainManager from "./views/KeychainManager.vue"
+import TerminalView from "./components/TerminalView.vue"
+import SftpView from "./components/SftpView.vue"
+import CommandPalette from "./components/CommandPalette.vue"
+import SettingsPanel from "./components/SettingsPanel.vue"
+import TunnelManager from "./views/TunnelManager.vue"
+import { useUiStore } from "./stores/uiStore"
+import { useSessionStore } from "./stores/sessionStore"
+import { useTunnelStore } from "./stores/tunnelStore"
+import { useLocale } from "./composables/useLocale"
 
 const uiStore = useUiStore()
 const sessionStore = useSessionStore()
+const tunnelStore = useTunnelStore()
 const { t } = useLocale()
 
 // 用于存储所有 TerminalView 组件的引用 (Key: sessionId, Value: Component Instance)
@@ -24,7 +27,8 @@ onMounted(async () => {
   // ✅ 并行加载主机列表和密钥列表
   await Promise.all([
     sessionStore.loadHosts(),
-    sessionStore.loadKeys()
+    sessionStore.loadKeys(),
+    tunnelStore.loadTunnels()
   ])
 
   // [核心逻辑] 全局监听后端发来的终端数据
@@ -89,11 +93,8 @@ onMounted(async () => {
             <!-- ✅ 密钥管理 -->
             <KeychainManager v-else-if="uiStore.currentView === 'keychain'" />
             
-            <!-- 端口转发 (暂未实现) -->
-            <div v-else-if="uiStore.currentView === 'port-forwarding'" class="h-full flex flex-col items-center justify-center text-cyber-text/50 font-mono">
-              <span class="text-neon-pink text-4xl mb-4 opacity-50">🚧</span>
-              <span>{{ t.appShell.underConstruction }}</span>
-            </div>
+            <!-- 端口转发 / 隧道 -->
+            <TunnelManager v-else-if="uiStore.currentView === 'port-forwarding'" />
 
             <!-- 默认/错误状态 -->
             <div v-else class="h-full flex items-center justify-center text-cyber-text/50 font-mono">

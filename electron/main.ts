@@ -7,6 +7,7 @@ import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { SessionManager } from './core/SessionManager'
+import { TunnelManager } from './core/TunnelManager'
 import Store from 'electron-store'
 
 const execAsync = promisify(exec);
@@ -15,16 +16,20 @@ const execAsync = promisify(exec);
 interface StoreSchema {
   hosts: any[];
   keys: any[]; 
+  tunnels: any[];
 }
 
 const store = new Store<StoreSchema>({
   defaults: {
     hosts: [],
-    keys: [] 
+    keys: [],
+    tunnels: []
   }
 });
 
 const sessionManager = new SessionManager();
+const tunnelManager = new TunnelManager(sessionManager);
+sessionManager.setOnSessionExit((id: string) => tunnelManager.cleanupBySession(id));
 // 屏蔽安全警告
 process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true';
 
@@ -85,6 +90,7 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
     sessionManager.killAll()
+    tunnelManager.stopAll().catch(() => {})
     if (process.platform !== 'darwin') {
         app.quit();
     }
@@ -127,6 +133,33 @@ ipcMain.handle('keys-get', () => store.get('keys'));
 ipcMain.handle('keys-save', (_event, keys) => {
   store.set('keys', keys);
   return true;
+});
+
+// --- Tunnels CRUD & controls ---
+ipcMain.handle('tunnels-get', () => store.get('tunnels'));
+ipcMain.handle('tunnels-save', (_event, tunnels) => {
+  store.set('tunnels', tunnels);
+  return true;
+});
+
+ipcMain.handle('tunnels-start', async (_event, payload) => {
+  try {
+    const data = await tunnelManager.startTunnel(payload);
+    return { success: true, data };
+  } catch (error: any) {
+    return { success: false, error: error?.message || 'Failed to start tunnel' };
+  }
+});
+
+ipcMain.handle('tunnels-stop', async (_event, id: string) => {
+  const success = await tunnelManager.stopTunnel(id);
+  return { success };
+});
+
+ipcMain.handle('tunnels-active', () => tunnelManager.listActive());
+
+ipcMain.handle('tunnels-check-port', async (_event, payload: { port: number; host?: string }) => {
+  return tunnelManager.checkPortAvailable(payload.port, payload.host);
 });
 
 // --- ✅ 文件操作 (新增) ---

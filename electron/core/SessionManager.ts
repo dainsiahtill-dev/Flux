@@ -4,9 +4,12 @@ import { LocalSession } from './LocalSession'
 import { SshSession } from './SshSession'
 import { OpenSshSession } from './OpenSshSession' // 引入新类
 import { SftpSession } from './SftpSession'
+import { Client } from 'ssh2'
 
 export class SessionManager {
   private sessions: Map<string, BaseSession> = new Map();
+  private sessionConfigs: Map<string, any> = new Map();
+  private onSessionExit?: (id: string) => void;
 
   constructor() {}
 
@@ -20,6 +23,7 @@ export class SessionManager {
         oldSession.removeAllListeners(); 
         oldSession.kill();
         this.sessions.delete(id);
+        this.sessionConfigs.delete(id);
       }
     }
 
@@ -48,6 +52,8 @@ export class SessionManager {
     session.on('exit', () => {
       if (!sender.isDestroyed()) sender.send('session-ended', { id });
       this.sessions.delete(id);
+      this.sessionConfigs.delete(id);
+      if (this.onSessionExit) this.onSessionExit(id);
     });
     session.on('error', (err) => {
       console.error(`[SessionManager] Session ${id} error:`, err);
@@ -57,6 +63,7 @@ export class SessionManager {
     });
 
     this.sessions.set(id, session);
+    this.sessionConfigs.set(id, config);
 
     try {
       await session.init(config);
@@ -86,11 +93,14 @@ export class SessionManager {
     if (session) {
       session.kill(); 
       this.sessions.delete(id);
+      this.sessionConfigs.delete(id);
+      if (this.onSessionExit) this.onSessionExit(id);
     }
   }
   killAll() {
     this.sessions.forEach(s => s.kill());
     this.sessions.clear();
+    this.sessionConfigs.clear();
   }
 
   async readSftpDir(id: string, remotePath?: string) {
@@ -152,5 +162,21 @@ export class SessionManager {
     }
     const sftpSession = session as SftpSession;
     return sftpSession.delete(path);
+  }
+
+  getSessionConfig(id: string) {
+    return this.sessionConfigs.get(id);
+  }
+
+  getSshClient(id: string): Client | null {
+    const session = this.sessions.get(id);
+    if (session && session instanceof SshSession) {
+      return session.getClient();
+    }
+    return null;
+  }
+
+  setOnSessionExit(cb: (id: string) => void) {
+    this.onSessionExit = cb;
   }
 }

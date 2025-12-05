@@ -9,8 +9,8 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        // 推荐使用 JetBrains Mono 或 Fira Code 作为默认字体
-        sans: ['"JetBrains Mono"', 'ui-monospace', 'monospace'], 
+        // 默认正文字体：微软雅黑优先，其次系统无衬线
+        sans: ['"Microsoft YaHei"', '"微软雅黑"', '"Segoe UI"', 'system-ui', '-apple-system', 'sans-serif'], 
       },
       colors: {
         cyber: {

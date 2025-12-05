@@ -183,6 +183,10 @@ export class SshSession extends BaseSession {
     this.emit('status', { status, log });
   }
 
+  getClient() {
+    return this.conn;
+  }
+
   write(data: string): void { this.stream?.write(data); }
   resize(cols: number, rows: number): void { this.stream?.setWindow(rows, cols, 0, 0); }
   kill(): void { this.conn.end(); this.stream = null; }

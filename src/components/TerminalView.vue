@@ -14,11 +14,13 @@ const overlayCopy = computed(() => t.value.connectionOverlay)
 
 const currentSession = computed(() => sessionStore.sessions.find(s => s.id === props.sessionId))
 
+const containerRef = ref<HTMLElement | null>(null)
 const terminalDiv = ref<HTMLElement | null>(null)
 let term: Terminal | null = null
 let fitAddon: FitAddon | null = null
 let resizeObserver: ResizeObserver | null = null
 let isTerminalOpen = false
+const contextMenu = ref<{ visible: boolean; x: number; y: number }>({ visible: false, x: 0, y: 0 })
 
 const tempCredentials = ref<{ user?: string; password?: string }>({})
 
@@ -86,7 +88,7 @@ const initTerminal = () => {
 
   if (terminalDiv.value.clientWidth > 0) {
     if (!term) {
-        term = new Terminal({
+      term = new Terminal({
         fontFamily: '"JetBrains Mono", "Fira Code", monospace',
         fontSize: 14,
         cursorBlink: true,
@@ -106,6 +108,13 @@ const initTerminal = () => {
           white: '#f8f8f2',
         },
         allowTransparency: true
+      })
+      term.attachCustomKeyEventHandler((ev) => {
+        if (ev.key === 'Tab') {
+          ev.preventDefault()
+          return true
+        }
+        return true
       })
       
       term.onData(data => {
@@ -170,6 +179,63 @@ onBeforeUnmount(() => {
   isTerminalOpen = false
 })
 
+const hideContextMenu = () => {
+  contextMenu.value.visible = false
+}
+
+const copySelection = async () => {
+  if (!term) return
+  const selection = term.getSelection()
+  if (!selection) return hideContextMenu()
+  try {
+    await navigator.clipboard.writeText(selection)
+  } catch (e) {
+    console.warn('Clipboard copy failed', e)
+  } finally {
+    hideContextMenu()
+  }
+}
+
+const pasteClipboard = async () => {
+  try {
+    const text = await navigator.clipboard.readText()
+    if (text && currentSession.value) {
+      window.electronAPI.sendInput({ id: props.sessionId, data: text })
+    }
+  } catch (e) {
+    console.warn('Clipboard paste failed', e)
+  } finally {
+    hideContextMenu()
+  }
+}
+
+const clearTerminal = () => {
+  term?.clear()
+  hideContextMenu()
+}
+
+const selectAll = () => {
+  term?.selectAll()
+  hideContextMenu()
+}
+
+const handleContextMenu = (event: MouseEvent) => {
+  event.preventDefault()
+  const rect = containerRef.value?.getBoundingClientRect()
+  contextMenu.value = {
+    visible: true,
+    x: rect ? event.clientX - rect.left : event.clientX,
+    y: rect ? event.clientY - rect.top : event.clientY
+  }
+}
+
+const handleGlobalClick = () => hideContextMenu()
+document.addEventListener('click', handleGlobalClick)
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleGlobalClick)
+})
+
 defineExpose({
   write: (data: string | Uint8Array) => {
     if (!term) return 
@@ -184,7 +250,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="relative w-full h-full bg-black/40">
+  <div class="relative w-full h-full bg-black/40" @contextmenu="handleContextMenu" ref="containerRef">
     <div class="w-full h-full overflow-hidden pl-2 pt-1" ref="terminalDiv"></div>
 
     <Transition
@@ -202,5 +268,22 @@ defineExpose({
         @cancel="handleCancel"
       />
     </Transition>
+
+    <div
+      v-if="contextMenu.visible"
+      class="absolute z-50 w-44 bg-cyber-dark border border-neon-blue/30 rounded-md shadow-neon-blue-inset text-sm select-none"
+      :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }"
+    >
+      <button class="context-item" @click.stop="copySelection">复制选中</button>
+      <button class="context-item" @click.stop="pasteClipboard">粘贴</button>
+      <button class="context-item" @click.stop="selectAll">全选</button>
+      <button class="context-item" @click.stop="clearTerminal">清屏</button>
+    </div>
   </div>
 </template>
+
+<style scoped>
+.context-item {
+  @apply w-full text-left px-3 py-2 hover:bg-neon-blue/10 hover:text-neon-blue transition-colors;
+}
+</style>

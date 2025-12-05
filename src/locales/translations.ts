@@ -103,6 +103,20 @@ type TranslationShape = {
     actionsLabel: string
     tooltips: StringRecord
   }
+  tunnels: {
+    title: string
+    subtitle: string
+    savedTitle: string
+    activeTitle: string
+    formTitle: string
+    labels: StringRecord
+    placeholders: StringRecord
+    types: StringRecord
+    actions: StringRecord
+    hints: StringRecord
+    portCheck: StringRecord
+    traffic: StringRecord
+  }
   sftp: {
     header: StringRecord
     badges: StringRecord
@@ -329,6 +343,70 @@ const enTranslation: TranslationShape = {
     actionsLabel: 'Actions',
     tooltips: {
       remove: 'Remove from keychain'
+    }
+  },
+  tunnels: {
+    title: 'Tunnel Control',
+    subtitle: 'Forwarding Matrix',
+    savedTitle: 'Saved Rules',
+    activeTitle: 'Active Tunnels',
+    formTitle: 'Tunnel Composer',
+    labels: {
+      name: 'Rule Name',
+      description: 'Description',
+      host: 'SSH Host',
+      type: 'Mode',
+      bind: 'Bind Address',
+      remoteBind: 'Remote Bind',
+      target: 'Target',
+      session: 'Bind Session',
+      unnamed: 'Untitled Route'
+    },
+    placeholders: {
+      name: 'e.g. Local DB',
+      description: 'Purpose / note',
+      host: 'Pick a host',
+      bindHost: '127.0.0.1',
+      bindPort: '8080',
+      targetHost: '127.0.0.1',
+      targetPort: '22',
+      session: 'Optional: reuse active SSH session'
+    },
+    types: {
+      l: 'Local',
+      r: 'Remote',
+      d: 'Dynamic'
+    },
+    actions: {
+      refresh: 'Refresh',
+      new: 'New Rule',
+      routes: 'routes',
+      quickStart: 'Quick start',
+      start: 'Start',
+      stop: 'Stop',
+      checkPort: 'Check',
+      save: 'Save',
+      saving: 'Saving...',
+      delete: 'Delete'
+    },
+    hints: {
+      saved: 'Reusable port forwarding templates',
+      empty: 'No saved tunnels yet',
+      live: 'Real-time traffic and state',
+      noActive: 'No active tunnels',
+      bind: 'Bind to a host/session to reuse credentials',
+      selectHost: 'Pick a host before launching',
+      unknownHost: 'Unknown host',
+      startFailed: 'Failed to start tunnel'
+    },
+    portCheck: {
+      ok: 'Port looks free',
+      error: 'Port is not available'
+    },
+    traffic: {
+      up: 'Up',
+      down: 'Down',
+      since: 'Since'
     }
   },
   sftp: {
@@ -629,6 +707,70 @@ const zhTranslation: TranslationShape = {
     actionsLabel: '操作',
     tooltips: {
       remove: '从密钥库移除'
+    }
+  },
+  tunnels: {
+    title: '转发控制台',
+    subtitle: '隧道矩阵',
+    savedTitle: '已保存规则',
+    activeTitle: '活跃隧道',
+    formTitle: '规则编辑器',
+    labels: {
+      name: '规则名称',
+      description: '说明',
+      host: '关联主机',
+      type: '模式',
+      bind: '绑定地址',
+      remoteBind: '远端绑定',
+      target: '目标地址',
+      session: '绑定会话',
+      unnamed: '未命名规则'
+    },
+    placeholders: {
+      name: '例如 内网DB',
+      description: '用途备注',
+      host: '选择主机',
+      bindHost: '127.0.0.1',
+      bindPort: '8080',
+      targetHost: '127.0.0.1',
+      targetPort: '22',
+      session: '可选：复用已连接会话'
+    },
+    types: {
+      l: '本地转发',
+      r: '远程转发',
+      d: '动态 (SOCKS5)'
+    },
+    actions: {
+      refresh: '刷新',
+      new: '新建规则',
+      routes: '条',
+      quickStart: '快速启动',
+      start: '启动',
+      stop: '停止',
+      checkPort: '检测端口',
+      save: '保存',
+      saving: '保存中...',
+      delete: '删除'
+    },
+    hints: {
+      saved: '保存并复用常用转发',
+      empty: '暂无保存的隧道',
+      live: '实时隧道状态',
+      noActive: '当前没有运行中的隧道',
+      bind: '选择主机/会话后启动',
+      selectHost: '请先选择主机',
+      unknownHost: '未知主机',
+      startFailed: '启动隧道失败'
+    },
+    portCheck: {
+      ok: '端口可用',
+      error: '端口被占用或不可用'
+    },
+    traffic: {
+      up: '上行',
+      down: '下行',
+      since: '已运行'
     }
   },
   sftp: {
