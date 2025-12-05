@@ -176,6 +176,15 @@ export class SessionManager {
     return null;
   }
 
+  async execCommand(id: string, command: string): Promise<string> {
+    const session = this.sessions.get(id);
+    if (!session) throw new Error('Session not found');
+    if (session instanceof SshSession) {
+      return session.execCommand(command);
+    }
+    throw new Error('Exec not supported for this session type');
+  }
+
   setOnSessionExit(cb: (id: string) => void) {
     this.onSessionExit = cb;
   }

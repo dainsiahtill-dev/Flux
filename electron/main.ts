@@ -2,17 +2,18 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import * as fs from 'fs'; // ✅ 必须引入 fs 模块用于读取文件
+import * as fs from 'fs'; // ?必须引入 fs 模块用于读取文件
 import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { SessionManager } from './core/SessionManager'
 import { TunnelManager } from './core/TunnelManager'
 import Store from 'electron-store'
+import { Client, ConnectConfig } from 'ssh2'
 
 const execAsync = promisify(exec);
 
-// 1. 定义存储结构，增加 keys
+// 1. 定义存储结构，增?keys
 interface StoreSchema {
   hosts: any[];
   keys: any[]; 
@@ -37,6 +38,60 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const windowSize = { width: 1200, height: 800 }
+
+const resolveKeyPath = (p?: string) => {
+  if (!p) return ''
+  if (p.startsWith('~')) {
+    return path.join(process.env.HOME || process.env.USERPROFILE || '', p.slice(1))
+  }
+  return path.normalize(p)
+}
+
+const execOnceViaSSH = (hostConfig: any, command: string): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    if (!hostConfig?.host || !hostConfig?.user) {
+      return reject(new Error('Missing host credentials'))
+    }
+    const client = new Client()
+    const connectOptions: ConnectConfig = {
+      host: hostConfig.host,
+      port: parseInt(hostConfig.port, 10) || 22,
+      username: hostConfig.user,
+      readyTimeout: 20000,
+      keepaliveInterval: 10000
+    }
+    if (hostConfig.authType === 'privateKey') {
+      const keyPath = resolveKeyPath(hostConfig.privateKeyPath)
+      if (!fs.existsSync(keyPath)) {
+        return reject(new Error(`Private key not found: ${keyPath}`))
+      }
+      connectOptions.privateKey = fs.readFileSync(keyPath)
+      if (hostConfig.password) connectOptions.passphrase = hostConfig.password
+    } else {
+      connectOptions.password = hostConfig.password
+    }
+
+    client.on('ready', () => {
+      client.exec(command, (err, stream) => {
+        if (err) {
+          client.end()
+          return reject(err)
+        }
+        let stdout = ''
+        let stderr = ''
+        stream.on('data', (d) => stdout += d.toString())
+        stream.stderr.on('data', (d) => stderr += d.toString())
+        stream.on('close', (code: number) => {
+          client.end()
+          if (code === 0) resolve(stdout.trim())
+          else reject(new Error(stderr || `Command failed with code ${code}`))
+        })
+      })
+    }).on('error', (err) => {
+      reject(err)
+    }).connect(connectOptions)
+  })
+}
 
 const createWindow = () => {
     const mainWindow = new BrowserWindow({
@@ -128,7 +183,7 @@ ipcMain.handle('hosts-save', (_event, hosts) => {
   return true;
 });
 
-// --- ✅ Keys CRUD (新增) ---
+// --- ?Keys CRUD (新增) ---
 ipcMain.handle('keys-get', () => store.get('keys'));
 ipcMain.handle('keys-save', (_event, keys) => {
   store.set('keys', keys);
@@ -162,7 +217,26 @@ ipcMain.handle('tunnels-check-port', async (_event, payload: { port: number; hos
   return tunnelManager.checkPortAvailable(payload.port, payload.host);
 });
 
-// --- ✅ 文件操作 (新增) ---
+ipcMain.handle('session-exec', async (_event, payload: { id: string, command: string }) => {
+  try {
+    const output = await sessionManager.execCommand(payload.id, payload.command);
+    return { success: true, output };
+  } catch (error) {
+    const message = (error as any)?.message || 'Exec failed';
+    return { success: false, error: message };
+  }
+});
+
+ipcMain.handle('session-exec-detached', async (_event, payload: { hostConfig: any, command: string }) => {
+  try {
+    const output = await execOnceViaSSH(payload.hostConfig, payload.command);
+    return { success: true, output };
+  } catch (error: any) {
+    return { success: false, error: error?.message || 'Detached exec failed' };
+  }
+});
+
+// --- ?文件操作 (新增) ---
 
 // 1. 打开文件选择弹窗
 ipcMain.handle('dialog-open-file', async () => {
@@ -177,11 +251,11 @@ ipcMain.handle('dialog-open-file', async () => {
   return filePaths[0]
 })
 
-// 2. 读取文件内容 (这是 readFile 的后端实现)
+// 2. 读取文件内容 (这是 readFile 的后端实?
 ipcMain.handle('file-read', async (_event, filePath) => {
   try {
     if (!filePath || !fs.existsSync(filePath)) return '';
-    // 读取文件内容并返回
+    // 读取文件内容并返?
     const content = await fs.promises.readFile(filePath, 'utf-8');
     return content;
   } catch (error: any) {
@@ -358,3 +432,4 @@ ipcMain.handle('fs-delete', async (_event, payload: { path: string }) => {
     return { success: false, error: error.message };
   }
 });
+

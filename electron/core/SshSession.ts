@@ -183,6 +183,25 @@ export class SshSession extends BaseSession {
     this.emit('status', { status, log });
   }
 
+  execCommand(command: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      this.conn.exec(command, (err, stream) => {
+        if (err) return reject(err);
+        let stdout = '';
+        let stderr = '';
+        stream.on('data', (data: Buffer) => { stdout += data.toString(); });
+        stream.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
+        stream.on('close', (code: number) => {
+          if (code === 0) {
+            resolve(stdout.trim());
+          } else {
+            reject(new Error(stderr || `Command failed with code ${code}`));
+          }
+        });
+      });
+    });
+  }
+
   getClient() {
     return this.conn;
   }

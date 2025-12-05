@@ -5,6 +5,8 @@ import { FitAddon } from 'xterm-addon-fit'
 import 'xterm/css/xterm.css'
 import { useSessionStore } from '../stores/sessionStore'
 import ConnectionOverlay from './ConnectionOverlay.vue'
+import TerminalAssistant from './TerminalAssistant.vue'
+import { PanelRightOpen, PanelRightClose } from 'lucide-vue-next'
 import { useLocale } from '../composables/useLocale'
 
 const props = defineProps<{ sessionId: string }>()
@@ -16,6 +18,8 @@ const currentSession = computed(() => sessionStore.sessions.find(s => s.id === p
 
 const containerRef = ref<HTMLElement | null>(null)
 const terminalDiv = ref<HTMLElement | null>(null)
+const showAssistant = ref(true)
+const toggleAssistant = () => { showAssistant.value = !showAssistant.value }
 let term: Terminal | null = null
 let fitAddon: FitAddon | null = null
 let resizeObserver: ResizeObserver | null = null
@@ -250,8 +254,19 @@ defineExpose({
 </script>
 
 <template>
-  <div class="relative w-full h-full bg-black/40" @contextmenu="handleContextMenu" ref="containerRef">
-    <div class="w-full h-full overflow-hidden pl-2 pt-1" ref="terminalDiv"></div>
+  <div class="relative w-full h-full bg-black/40 flex" @contextmenu="handleContextMenu" ref="containerRef">
+    <div class="flex-1 h-full overflow-hidden pl-2 pt-1 relative">
+      <div class="w-full h-full" ref="terminalDiv"></div>
+      <button
+        class="absolute top-1/2 -translate-y-1/2 right-2 z-30 bg-black/70 border border-neon-blue/50 text-neon-blue rounded-full p-2 hover:bg-neon-blue hover:text-black transition-colors shadow-[0_0_10px_rgba(0,243,255,0.4)]"
+        @click.stop="toggleAssistant"
+        :title="showAssistant ? '收起助手' : '展开助手'"
+      >
+        <PanelRightClose v-if="showAssistant" size="14" />
+        <PanelRightOpen v-else size="14" />
+      </button>
+    </div>
+    <TerminalAssistant v-if="showAssistant" class="shrink-0" :session-id="props.sessionId" />
 
     <Transition
       enter-active-class="transition-opacity duration-300 ease-out"

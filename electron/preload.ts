@@ -33,6 +33,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   stopTunnel: (id: string) => ipcRenderer.invoke('tunnels-stop', id),
   getActiveTunnels: () => ipcRenderer.invoke('tunnels-active'),
   checkPortAvailability: (port: number, host?: string) => ipcRenderer.invoke('tunnels-check-port', { port, host }),
+  execSessionCommand: (payload: { id: string; command: string }) => ipcRenderer.invoke('session-exec', payload),
+  execDetachedCommand: (payload: { hostConfig: any; command: string }) => ipcRenderer.invoke('session-exec-detached', payload),
 
   // ✅ Keys & Files (确保这些 API 已暴露)
   getKeys: () => ipcRenderer.invoke('keys-get'),
