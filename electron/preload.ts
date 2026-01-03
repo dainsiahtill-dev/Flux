@@ -40,7 +40,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getKeys: () => ipcRenderer.invoke('keys-get'),
   saveKeys: (keys: any[]) => ipcRenderer.invoke('keys-save', keys),
   openFileDialog: () => ipcRenderer.invoke('dialog-open-file'),
-  readFile: (path: string) => ipcRenderer.invoke('file-read', path), 
+  readFile: (path: string) => ipcRenderer.invoke('file-read', path),
+  writeFile: (path: string, content: string, mode?: number) => ipcRenderer.invoke('file-write', { path, content, mode }),
   fsStat: (path: string) => ipcRenderer.invoke('fs-stat', path),
   readDir: (path?: string) => ipcRenderer.invoke('fs-read-dir', path),
   sftpReadDir: (payload: { id: string, path?: string }) => ipcRenderer.invoke('sftp-read-dir', payload),
@@ -55,6 +56,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   cancelTransfer: (payload: { id: string, transferId: string }) => ipcRenderer.send('sftp-cancel-transfer', payload),
   onTransferProgress: (callback: (payload: { sessionId: string, id: string, transferred: number, total: number, percent: number }) => void) =>
     ipcRenderer.on('transfer-progress', (_event, value) => callback(value)),
+
+  // SSH Utilities
+  generateSSHKey: (payload: { alias?: string; passphrase?: string; directory?: string }) => ipcRenderer.invoke('ssh-generate-key', payload),
+  installPublicKeyToHost: (payload: { hostConfig: any; publicKey: string }) => ipcRenderer.invoke('ssh-install-pubkey', payload),
+  testHostConnection: (hostConfig: any) => ipcRenderer.invoke('ssh-test-connection', hostConfig),
   
   // Utils
   getPathForFile: (file: File) => webUtils.getPathForFile(file),

@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useUiStore } from '../stores/uiStore'
 import { useSessionStore } from '../stores/sessionStore'
-import { ArrowRight, Copy, ShieldCheck, Save } from 'lucide-vue-next'
+import { ArrowRight, Copy, Save, Upload } from 'lucide-vue-next'
 import { useLocale } from '../composables/useLocale'
 
 const uiStore = useUiStore()
@@ -20,22 +20,23 @@ const formData = ref({
   content: ''
 })
 
+const publicKey = ref('')
 const isSaving = ref(false)
-const originalContent = ref('') // 用于检测内容变更
+const originalContent = ref('')
 
-// 读取文件内容
+const selectedHostId = ref<string>('')
+const availableHosts = computed(() => sessionStore.savedHosts)
+
 const loadKeyContent = async (path: string) => {
   formData.value.content = keyText.value.states.loading
-  
   try {
-    if (window.electronAPI && window.electronAPI.readFile) {
+    if (window.electronAPI?.readFile) {
       const content = await window.electronAPI.readFile(path)
-      if (content && !content.startsWith('Error')) {
-        formData.value.content = content
-        originalContent.value = content // 记录原始值
-      } else {
-        formData.value.content = content || keyText.value.states.readError
-      }
+      formData.value.content = content && !content.startsWith('Error') ? content : (content || keyText.value.states.readError)
+      originalContent.value = formData.value.content
+
+      const pub = await window.electronAPI.readFile(path + '.pub')
+      publicKey.value = pub && !pub.startsWith('Error') ? pub.trim() : ''
     } else {
       formData.value.content = keyText.value.states.apiError
     }
@@ -58,27 +59,14 @@ const close = () => uiStore.closeKeyDetail()
 
 const save = async () => {
   if (!currentKey.value) return
-  
   isSaving.value = true
-  
   try {
-    // 1. 保存元数据 (Alias)
-    await sessionStore.saveKey({
-      id: currentKey.value.id,
-      alias: formData.value.alias,
-    })
-
-    // 2. 保存文件内容 (如果修改了)
-    if (formData.value.content !== originalContent.value && window.electronAPI && window.electronAPI.writeFile) {
-       const success = await window.electronAPI.writeFile(formData.value.path, formData.value.content)
-       if (success) {
-         originalContent.value = formData.value.content // 更新原始值
-         console.log('File saved successfully')
-       } else {
-         alert(keyText.value.states.writeFailed)
-       }
+    await sessionStore.saveKey({ id: currentKey.value.id, alias: formData.value.alias })
+    if (formData.value.content !== originalContent.value && window.electronAPI?.writeFile) {
+      const ok = await window.electronAPI.writeFile(formData.value.path, formData.value.content, 0o600)
+      if (!ok) alert(keyText.value.states.writeFailed)
+      else originalContent.value = formData.value.content
     }
-    
     close()
   } catch (e) {
     console.error('Save failed', e)
@@ -88,9 +76,16 @@ const save = async () => {
 }
 
 const copyToClipboard = () => {
-  if (formData.value.content) {
-    navigator.clipboard.writeText(formData.value.content)
-  }
+  if (formData.value.content) navigator.clipboard.writeText(formData.value.content)
+}
+
+const installToHost = async () => {
+  if (!selectedHostId.value || !publicKey.value) return
+  const host = sessionStore.savedHosts.find(h => h.id === selectedHostId.value)
+  if (!host) return
+  const res = await window.electronAPI.installPublicKeyToHost({ hostConfig: host, publicKey: publicKey.value })
+  if (res?.success) alert('公钥已安装到远程服务器 authorized_keys')
+  else alert('安装失败: ' + (res?.error || 'unknown'))
 }
 </script>
 
@@ -122,7 +117,7 @@ const copyToClipboard = () => {
         </div>
       </div>
 
-      <!-- Private Key (Purple Style & Editable) -->
+      <!-- Private Key (Editable) -->
       <div class="relative">
         <label class="absolute -top-2 left-2 px-1 bg-cyber-black text-[10px] text-purple-400 uppercase z-10 flex items-center gap-1 font-bold tracking-wider">
           {{ keyText.labels.privateKey }}
@@ -150,11 +145,22 @@ const copyToClipboard = () => {
       </div>
 
       <!-- Public Key -->
-      <div class="group relative opacity-60 hover:opacity-100 transition-opacity">
+      <div class="group relative">
         <label class="absolute -top-2 left-2 px-1 bg-cyber-black text-[10px] text-cyber-text/50 uppercase">{{ keyText.labels.publicKey }}</label>
         <div class="border border-cyber-text/20 rounded p-0">
-           <textarea readonly class="w-full h-20 bg-transparent text-[10px] text-cyber-text p-3 outline-none font-mono resize-none" :placeholder="keyText.placeholders.privateKey"></textarea>
+           <textarea readonly class="w-full h-20 bg-transparent text-[10px] text-cyber-text p-3 outline-none font-mono resize-none" :value="publicKey" placeholder="ssh-ed25519 AAAA..."></textarea>
         </div>
+      </div>
+
+      <!-- Install to host -->
+      <div class="p-3 border border-neon-blue/20 rounded bg-cyber-light/10 flex items-center gap-2">
+        <select v-model="selectedHostId" class="bg-cyber-black border border-cyber-text/30 rounded text-xs text-cyber-text-bright p-2 min-w-[180px]">
+          <option value="" disabled>选择目标主机</option>
+          <option v-for="h in availableHosts" :key="h.id" :value="h.id">{{ h.alias || (h.user + '@' + h.host) }}</option>
+        </select>
+        <button @click="installToHost" class="px-3 py-2 text-xs bg-neon-blue/10 text-neon-blue border border-neon-blue/50 rounded hover:bg-neon-blue hover:text-black transition-colors flex items-center gap-1">
+          <Upload size="12" /> 安装到服务器
+        </button>
       </div>
 
     </div>
@@ -180,18 +186,8 @@ const copyToClipboard = () => {
 </template>
 
 <style scoped>
-/* 自定义滚动条样式，匹配紫色主题 */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(0,0,0,0.2);
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(168, 85, 247, 0.3); /* purple-500 with opacity */
-  border-radius: 3px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(168, 85, 247, 0.6);
-}
+.custom-scrollbar::-webkit-scrollbar { width: 6px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(168, 85, 247, 0.3); border-radius: 3px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(168, 85, 247, 0.6); }
 </style>

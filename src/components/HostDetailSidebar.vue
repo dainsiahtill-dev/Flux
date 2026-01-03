@@ -148,6 +148,17 @@ const remove = () => {
     close()
   }
 }
+
+const testConnection = async () => {
+  const payload = { ...formData.value }
+  try {
+    const res = await window.electronAPI?.testHostConnection(payload)
+    if (res?.success) alert('连接正常')
+    else alert('连接失败: ' + (res?.error || 'unknown'))
+  } catch (e: any) {
+    alert('连接失败: ' + e?.message)
+  }
+}
 </script>
 
 <template>
@@ -305,6 +316,9 @@ const remove = () => {
           <FolderGit2 size="18" class="group-hover:drop-shadow-[0_0_6px_rgba(255,0,255,0.6)]" />
           <span>{{ hostText.buttons.sftp }}</span>
         </button>
+      </div>
+      <div class="flex justify-end">
+        <button @click="testConnection" class="mt-2 px-3 py-1.5 text-[10px] bg-cyber-light/30 text-cyber-text border border-cyber-text/30 rounded hover:text-neon-blue hover:border-neon-blue/60 transition">测试连接</button>
       </div>
       
       <Transition 

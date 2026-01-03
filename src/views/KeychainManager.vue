@@ -58,6 +58,22 @@ const deleteKey = async (id: string) => {
   }
 }
 
+const generateKey = async () => {
+  const alias = prompt('密钥别名（文件名）', 'flux_ed25519') || 'flux_ed25519'
+  const passphrase = prompt('可选：为私钥设置口令（留空跳过）') || undefined
+  try {
+    const res = await window.electronAPI?.generateSSHKey({ alias, passphrase })
+    if (res?.success) {
+      await sessionStore.saveKey({ alias, path: res.privateKeyPath })
+      alert('密钥已生成：' + res.privateKeyPath)
+    } else {
+      alert('生成失败：' + (res?.error || 'unknown'))
+    }
+  } catch (e: any) {
+    alert('生成失败：' + e?.message)
+  }
+}
+
 // ✅ 打开详情
 const openDetail = (key: any) => {
   uiStore.openKeyDetail(key.id)
@@ -73,14 +89,24 @@ const openDetail = (key: any) => {
         <h1 class="text-xl font-bold text-neon-blue tracking-[0.2em] uppercase drop-shadow-[0_0_5px_rgba(0,243,255,0.8)]">
           {{ t.keychainManager.title }}
         </h1>
-        <button 
-          v-if="!isAdding"
-          @click="startAdd"
-          class="flex items-center space-x-2 px-3 py-1.5 bg-neon-blue/10 text-neon-blue border border-neon-blue/50 rounded hover:bg-neon-blue hover:text-black transition-all text-xs font-bold"
-        >
-          <Plus size="14" />
-          <span>{{ t.keychainManager.addButton }}</span>
-        </button>
+        <div class="flex items-center gap-2">
+          <button 
+            v-if="!isAdding"
+            @click="startAdd"
+            class="flex items-center space-x-2 px-3 py-1.5 bg-neon-blue/10 text-neon-blue border border-neon-blue/50 rounded hover:bg-neon-blue hover:text-black transition-all text-xs font-bold"
+          >
+            <Plus size="14" />
+            <span>{{ t.keychainManager.addButton }}</span>
+          </button>
+          <button
+            @click="generateKey"
+            class="flex items-center space-x-2 px-3 py-1.5 bg-purple-500/10 text-purple-300 border border-purple-500/40 rounded hover:bg-purple-500 hover:text-white transition-all text-xs font-bold"
+            title="Generate SSH key (ed25519)"
+          >
+            <Key size="14" />
+            <span>生成密钥</span>
+          </button>
+        </div>
       </div>
 
       <div class="flex-1 overflow-y-auto p-6 no-scrollbar space-y-6">

@@ -2,7 +2,7 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import * as fs from 'fs'; // ?必须引入 fs 模块用于读取文件
+import * as fs from 'fs';
 import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
@@ -10,6 +10,7 @@ import { SessionManager } from './core/SessionManager'
 import { TunnelManager } from './core/TunnelManager'
 import Store from 'electron-store'
 import { Client, ConnectConfig } from 'ssh2'
+import { generateKeyPairSync, createPublicKey } from 'crypto'
 
 const execAsync = promisify(exec);
 
@@ -264,6 +265,24 @@ ipcMain.handle('file-read', async (_event, filePath) => {
   }
 })
 
+// 2.5 写入文件
+ipcMain.handle('file-write', async (_event, payload: { path: string, content: string, mode?: number }) => {
+  try {
+    const dir = path.dirname(payload.path)
+    await fs.promises.mkdir(dir, { recursive: true })
+    if (typeof payload.mode === 'number') {
+      await fs.promises.writeFile(payload.path, payload.content, { mode: payload.mode })
+    } else {
+      await fs.promises.writeFile(payload.path, payload.content)
+    }
+    return true
+  } catch (error: any) {
+    console.error('file-write error:', error)
+    return false
+  }
+})
+
+
 // 3. 读取目录 (本地文件浏览)
 ipcMain.handle('fs-stat', async (_event, filePath: string) => {
   try {
@@ -422,6 +441,90 @@ ipcMain.handle('fs-create-dir', async (_event, payload: { path: string }) => {
     return { success: false, error: error.message };
   }
 });
+
+// === SSH Utilities ===
+const ensureSshDir = async () => {
+  const sshDir = path.join(process.env.HOME || process.env.USERPROFILE || '', '.ssh')
+  await fs.promises.mkdir(sshDir, { recursive: true })
+  return sshDir
+}
+
+function toOpenSshEd25519(publicKeyPem: string, comment = ''): string {
+  try {
+    const pubJwk: any = createPublicKey(publicKeyPem).export({ format: 'jwk' })
+    const x = pubJwk?.x
+    if (!x) throw new Error('Unable to export public key JWK')
+    const b64 = x.replace(/-/g, '+').replace(/_/g, '/')
+    const raw = Buffer.from(b64, 'base64')
+    const algo = Buffer.from('ssh-ed25519')
+
+    const len = Buffer.alloc(4)
+    const len2 = Buffer.alloc(4)
+    len.writeUInt32BE(algo.length, 0)
+    len2.writeUInt32BE(raw.length, 0)
+    const blob = Buffer.concat([len, algo, len2, raw])
+    const body = blob.toString('base64')
+    return `ssh-ed25519 ${body}${comment ? ' ' + comment : ''}`
+  } catch (e) {
+    throw new Error('Failed to build OpenSSH public key: ' + (e as any)?.message)
+  }
+}
+
+ipcMain.handle('ssh-generate-key', async (_event, payload: { alias?: string; passphrase?: string; directory?: string }) => {
+  const alias = (payload?.alias || 'flux_ed25519').replace(/\s+/g, '_')
+  const baseDir = payload?.directory || (await ensureSshDir())
+  const basePath = path.join(baseDir, alias)
+
+  try {
+    const kp = generateKeyPairSync('ed25519', {
+      privateKeyEncoding: {
+        type: 'pkcs8',
+        format: 'pem',
+        cipher: payload?.passphrase ? 'aes-256-cbc' : undefined as any,
+        passphrase: payload?.passphrase
+      },
+      publicKeyEncoding: { type: 'spki', format: 'pem' }
+    }) as any
+
+    const privateKeyPem: string = kp.privateKey
+    const publicKeyPem: string = kp.publicKey
+
+    const publicKeyOpenSSH = toOpenSshEd25519(publicKeyPem, alias)
+
+    await fs.promises.writeFile(basePath, privateKeyPem, { mode: 0o600 })
+    await fs.promises.writeFile(basePath + '.pub', publicKeyOpenSSH + '\n', { mode: 0o644 })
+
+    return { success: true, privateKeyPath: basePath, publicKeyPath: basePath + '.pub', publicKey: publicKeyOpenSSH }
+  } catch (error: any) {
+    return { success: false, error: error?.message || 'Key generation failed' }
+  }
+})
+
+ipcMain.handle('ssh-install-pubkey', async (_event, payload: { hostConfig: any; publicKey: string }) => {
+  try {
+    const { hostConfig, publicKey } = payload
+    if (!hostConfig) throw new Error('Missing host config')
+    if (!publicKey) throw new Error('Missing public key')
+
+    const safe = publicKey.replace(/'/g, `\'"'\"'\'`)
+    const cmd = `mkdir -p ~/.ssh && chmod 700 ~/.ssh && printf '%s\\n' '${safe}' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys`
+
+    const output = await execOnceViaSSH(hostConfig, cmd)
+    return { success: true, output }
+  } catch (error: any) {
+    return { success: false, error: error?.message || 'Install failed' }
+  }
+})
+
+ipcMain.handle('ssh-test-connection', async (_event, hostConfig: any) => {
+  try {
+    const output = await execOnceViaSSH(hostConfig, 'echo __OK__')
+    const ok = (output || '').includes('__OK__')
+    return { success: ok, output }
+  } catch (error: any) {
+    return { success: false, error: error?.message || 'Connection failed' }
+  }
+})
 
 // 13. Local Delete
 ipcMain.handle('fs-delete', async (_event, payload: { path: string }) => {
